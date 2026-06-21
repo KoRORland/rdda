@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+
+	"golang.org/x/crypto/curve25519"
 )
 
 // NewUUID returns a random RFC-4122 v4 UUID string (xray client id).
@@ -35,4 +37,29 @@ func NewToken() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b[:]), nil
+}
+
+// X25519Keypair holds base64 raw-url-encoded REALITY keys, matching `xray x25519`.
+type X25519Keypair struct {
+	PrivateKey string
+	PublicKey  string
+}
+
+// NewX25519Keypair generates a clamped Curve25519 keypair for REALITY.
+func NewX25519Keypair() (X25519Keypair, error) {
+	var priv [32]byte
+	if _, err := rand.Read(priv[:]); err != nil {
+		return X25519Keypair{}, err
+	}
+	priv[0] &= 248
+	priv[31] &= 127
+	priv[31] |= 64
+	pub, err := curve25519.X25519(priv[:], curve25519.Basepoint)
+	if err != nil {
+		return X25519Keypair{}, err
+	}
+	return X25519Keypair{
+		PrivateKey: base64.RawURLEncoding.EncodeToString(priv[:]),
+		PublicKey:  base64.RawURLEncoding.EncodeToString(pub),
+	}, nil
 }

@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"encoding/base64"
 	"regexp"
 	"testing"
 )
@@ -34,5 +35,24 @@ func TestNewToken(t *testing.T) {
 	}
 	if len(tok) < 16 {
 		t.Fatalf("token %q too short", tok)
+	}
+}
+
+func TestNewX25519Keypair(t *testing.T) {
+	kp, err := NewX25519Keypair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kp.PrivateKey == "" || kp.PublicKey == "" {
+		t.Fatal("empty key")
+	}
+	// xray uses base64 raw-url encoding of 32-byte keys.
+	priv, err := base64.RawURLEncoding.DecodeString(kp.PrivateKey)
+	if err != nil || len(priv) != 32 {
+		t.Fatalf("private key not 32 raw-url bytes: %v len=%d", err, len(priv))
+	}
+	pub, err := base64.RawURLEncoding.DecodeString(kp.PublicKey)
+	if err != nil || len(pub) != 32 {
+		t.Fatalf("public key not 32 raw-url bytes: %v len=%d", err, len(pub))
 	}
 }
