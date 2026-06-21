@@ -1,0 +1,33 @@
+We are designing a VPN system called Russian Doll Double Agent, that is purposfully built to surcumvent Russian Roskomnadzor(RKN) Internet censorship system. Legitimate use only.
+
+This is supposed to be an easy to setup, higly automated 2-hop intellectual VPN setup, based off current RKN setup - DPI, Active probing, connection behavior analysis, etc. 
+
+Scope of distribution - non-commersial, close group of friends, family, etc.
+
+Platform scope:
+- RU and EU nodes: Ubuntu 24.04 LTS VPSes (forward-compatible with 26.04 LTS).
+- Clients: Linux (rpm- and deb-based distros), Windows, and Android (mobile).
+
+Basic concepts:
+- on client side, the setup has to be as easy as it gets, so even a granny with 0 tech knowledge can set it up. Install an app, copy a link and hit connect - that's maximum that we can afford.
+- all legal risks lie on the operator side, it is NOT illegal to run a VPN in Russia but legal practice may vary.
+- operator's work has to be higly automated with human-in-the loop only for adding new clients, or fixing issues. So - auto-updating, self-healing, easily updatable higly automated system.
+- RU node is an intelligent node, it has to:
+  - handle it's own health and updates;
+  - have client-exposing data (IPs, nicknames, etc) only in runtime;
+  - handle tunnel to the EU node with traffic obfuscation (e.g. Zapret https://github.com/bol-van/zapret2 );
+  - handle client's traffic routing - traffic to RU zone should be routed out of RU node, with additional list of international sites to be routed to RU; all the other should be routed through tunnel to EU node;
+  - has to look like a normal HTTP site to all the active probing.
+- EU node is a controller in the safe from Ru authorities zone, behind the cloudflare CDN, that handles:
+  - versioning of self and ru nodes;
+  - client list;
+  - all the shared data;
+  - alerting of operator;
+  - backups of the data;
+  - etc.
+- System should be easy to debug, monitor and maintain. It should not be overengineered, and use maximum of well-known and actively maintained components for setup, and self-update if new updates arrive for upstream projects.
+- Test-Driven development first, with integration step (EU node < RU node < simple linux client) at all minor releases, GitHub hosted with test pipeline on GH actions.
+
+We need to base our design on https://publish.obsidian.md/zapret/Privacy/VLESS/dpi-tls-june-2026 latest news, and incorporate pubically available lists of blocked IPs and such.
+
+We need to think about adaptivity of this design, for it is a never-ending chase.
