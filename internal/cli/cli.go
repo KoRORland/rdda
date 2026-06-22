@@ -2,9 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/KoRORland/rdda/internal/keys"
 	"github.com/KoRORland/rdda/internal/state"
+	"github.com/KoRORland/rdda/internal/subserver"
+	"github.com/KoRORland/rdda/internal/xrayconf"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +30,8 @@ func newRoot() *cobra.Command {
 	})
 	root.AddCommand(newInitCmd(&dir))
 	root.AddCommand(newClientCmd(&dir))
+	root.AddCommand(newRenderCmd(&dir))
+	root.AddCommand(newServeCmd(&dir))
 	return root
 }
 
@@ -144,6 +149,73 @@ func newClientCmd(dir *string) *cobra.Command {
 	}
 
 	cmd.AddCommand(add, rm, list)
+	return cmd
+}
+
+func newRenderCmd(dir *string) *cobra.Command {
+	cmd := &cobra.Command{Use: "render", Short: "Render xray configs"}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "ru",
+		Short: "Render the RU node xray config",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			clients, err := s.ListClients()
+			if err != nil {
+				return err
+			}
+			b, err := xrayconf.RenderRU(cfg, clients)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			return nil
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "eu",
+		Short: "Render the EU node xray config",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			b, err := xrayconf.RenderEU(cfg)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			return nil
+		},
+	})
+	return cmd
+}
+
+func newServeCmd(dir *string) *cobra.Command {
+	var addr string
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Run the subscription HTTP server (EU node)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "rdda subscription server on %s\n", addr)
+			return http.ListenAndServe(addr, subserver.Handler(s))
+		},
+	}
+	cmd.Flags().StringVar(&addr, "addr", ":8080", "listen address")
 	return cmd
 }
 

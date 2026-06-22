@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -56,5 +57,24 @@ func TestClientAddPrintsSubURL(t *testing.T) {
 	list = run(t, "--dir", dir, "client", "list")
 	if strings.Contains(list, "granny") {
 		t.Fatalf("granny still listed after rm: %s", list)
+	}
+}
+
+func TestRenderRUEU(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
+	run(t, "--dir", dir, "client", "add", "granny")
+
+	ru := run(t, "--dir", dir, "render", "ru")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(ru), &doc); err != nil {
+		t.Fatalf("render ru not JSON: %v", err)
+	}
+	if !strings.Contains(ru, "geoip:ru") {
+		t.Error("RU render missing routing")
+	}
+	eu := run(t, "--dir", dir, "render", "eu")
+	if err := json.Unmarshal([]byte(eu), &doc); err != nil {
+		t.Fatalf("render eu not JSON: %v", err)
 	}
 }
