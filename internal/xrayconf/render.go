@@ -79,6 +79,40 @@ func firstOrEmpty(s []string) string {
 	return s[0]
 }
 
+// RenderClient builds a minimal client-side xray config:
+// SOCKS5 inbound on socksPort → VLESS/xhttp/REALITY outbound to the RU node.
+// clientUUID must match one of the UUIDs registered in the RU server config.
+func RenderClient(cfg state.Config, clientUUID string, socksPort int) ([]byte, error) {
+	inbound := obj{
+		"listen": "127.0.0.1", "port": socksPort, "protocol": "socks", "tag": "socks-in",
+		"settings": obj{"auth": "noauth", "udp": false},
+	}
+	outbound := obj{
+		"protocol": "vless", "tag": "proxy",
+		"settings": obj{"vnext": []obj{{
+			"address": cfg.RUHost, "port": cfg.RUPort,
+			"users": []obj{{"id": clientUUID, "encryption": "none", "flow": ""}},
+		}}},
+		"streamSettings": obj{
+			"network":       "xhttp",
+			"xhttpSettings": obj{"path": cfg.ClientPath},
+			"security":      "reality",
+			"realitySettings": obj{
+				"serverName":  cfg.ClientReality.ServerName,
+				"publicKey":   cfg.ClientReality.PublicKey,
+				"shortId":     firstOrEmpty(cfg.ClientReality.ShortIDs),
+				"fingerprint": "chrome",
+			},
+		},
+	}
+	doc := obj{
+		"log":       obj{"loglevel": "warning"},
+		"inbounds":  []obj{inbound},
+		"outbounds": []obj{outbound},
+	}
+	return json.MarshalIndent(doc, "", "  ")
+}
+
 // RenderEU builds the EU node config: terminate the RU tunnel, exit to the internet.
 func RenderEU(cfg state.Config) ([]byte, error) {
 	inbound := obj{
