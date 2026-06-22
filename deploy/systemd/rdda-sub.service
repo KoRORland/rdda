@@ -1,0 +1,15 @@
+[Unit]
+Description=RDDA subscription server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/rdda --dir /etc/rdda serve --addr 127.0.0.1:8080
+Restart=on-failure
+RestartSec=3
+DynamicUser=yes
+ReadOnlyPaths=/etc/rdda
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
