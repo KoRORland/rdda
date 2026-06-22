@@ -60,20 +60,31 @@ Full design and rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## 🚀 Quickstart — Operators
 
-> _Coming soon. The whole point is that this part is short. Reserved for the
-> "spin up both nodes in a few commands" walkthrough._
-
-<!-- TODO(v0.1): operator quickstart
-  1. Provision EU node (Ubuntu 24.04 VPS, behind Cloudflare)
-  2. Provision RU node (Ubuntu 24.04 VPS)
-  3. rdda client add <name>  → hand out the link
--->
+1. **Two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
+2. On **EU**, install xray + `rdda`, then:
+   ```bash
+   rdda --dir /etc/rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
+   rdda --dir /etc/rdda render eu > /etc/rdda/xray.json
+   systemctl enable --now rdda-xray rdda-sub
+   ```
+3. On **RU**, install xray, then copy the rendered RU config over:
+   ```bash
+   # on EU:
+   rdda --dir /etc/rdda render ru        # copy output to RU:/etc/rdda/xray.json
+   # on RU:
+   systemctl enable --now rdda-xray
+   ```
+4. **Add a friend** (on EU) and send them the printed link:
+   ```bash
+   rdda --dir /etc/rdda client add aunt-olga
+   ```
+See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](deploy/install-ru.md) for details.
 
 ## 📱 Quickstart — Clients (your friends & family)
 
-> _Coming soon. Reserved for the "install Hiddify, paste link, Connect" three-liner._
-
-<!-- TODO(v0.1): client quickstart — install Hiddify, paste subscription URL, Connect -->
+1. Install **Hiddify** ([hiddify.com](https://hiddify.com)) — Android, Windows, or Linux.
+2. Paste the link the operator sent you (it starts with `https://`) as a **profile/subscription**.
+3. Hit **Connect**. That's it.
 
 ---
 
