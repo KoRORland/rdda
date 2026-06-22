@@ -1,0 +1,6 @@
+# Build artifacts
+/rdda
+/bin/
+
+# SDD workspace scratch (plans/ledger live in docs/; this is transient)
+.superpowers/
