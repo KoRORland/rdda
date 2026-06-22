@@ -36,3 +36,23 @@ func TestRenderRUIsValidJSONWithClientsAndRouting(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderEUAcceptsTunnelAndExits(t *testing.T) {
+	b, err := RenderEU(cfg())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	s := string(b)
+	for _, want := range []string{"tunnel-uuid", "freedom", "tpriv", "/tn", "reality"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("EU config missing %q", want)
+		}
+	}
+	if strings.Contains(s, "uuid-1") {
+		t.Error("EU config must not contain per-user client UUIDs")
+	}
+}

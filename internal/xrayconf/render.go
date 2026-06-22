@@ -78,3 +78,35 @@ func firstOrEmpty(s []string) string {
 	}
 	return s[0]
 }
+
+// RenderEU builds the EU node config: terminate the RU tunnel, exit to the internet.
+func RenderEU(cfg state.Config) ([]byte, error) {
+	inbound := obj{
+		"listen": "0.0.0.0", "port": cfg.EUPort, "protocol": "vless", "tag": "in",
+		"settings": obj{
+			"clients":    []obj{{"id": cfg.TunnelUUID, "flow": ""}},
+			"decryption": "none",
+		},
+		"streamSettings": obj{
+			"network":      "xhttp",
+			"xhttpSettings": obj{"path": cfg.TunnelPath},
+			"security":     "reality",
+			"realitySettings": obj{
+				"target":      cfg.TunnelReality.Target,
+				"serverNames": []string{cfg.TunnelReality.ServerName},
+				"privateKey":  cfg.TunnelReality.PrivateKey,
+				"shortIds":    cfg.TunnelReality.ShortIDs,
+			},
+		},
+		"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
+	}
+	doc := obj{
+		"log":      obj{"loglevel": "warning"},
+		"inbounds": []obj{inbound},
+		"outbounds": []obj{
+			{"protocol": "freedom", "tag": "direct"},
+			{"protocol": "blackhole", "tag": "block"},
+		},
+	}
+	return json.MarshalIndent(doc, "", "  ")
+}
