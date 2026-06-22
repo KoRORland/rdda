@@ -100,7 +100,7 @@ func newClientCmd(dir *string) *cobra.Command {
 
 	add := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Add a client and print its subscription URL",
+		Short: "Add a client and print its vless:// link",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := state.Open(*dir)
