@@ -1,0 +1,80 @@
+// Package xrayconf renders xray-core JSON configs from RDDA state.
+package xrayconf
+
+import (
+	"encoding/json"
+
+	"github.com/KoRORland/rdda/internal/state"
+)
+
+type obj = map[string]any
+
+// RenderRU builds the RU node config: client entry + tunnel to EU + split routing.
+func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
+	xrayClients := make([]obj, 0, len(clients))
+	for _, c := range clients {
+		xrayClients = append(xrayClients, obj{"id": c.UUID, "flow": ""})
+	}
+
+	inbound := obj{
+		"listen": "0.0.0.0", "port": cfg.RUPort, "protocol": "vless", "tag": "in",
+		"settings": obj{"clients": xrayClients, "decryption": "none"},
+		"streamSettings": obj{
+			"network":      "xhttp",
+			"xhttpSettings": obj{"path": cfg.ClientPath},
+			"security":     "reality",
+			"realitySettings": obj{
+				"target":      cfg.ClientReality.Target,
+				"serverNames": []string{cfg.ClientReality.ServerName},
+				"privateKey":  cfg.ClientReality.PrivateKey,
+				"shortIds":    cfg.ClientReality.ShortIDs,
+			},
+		},
+		"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
+	}
+
+	proxyOut := obj{
+		"protocol": "vless", "tag": "proxy",
+		"settings": obj{"vnext": []obj{{
+			"address": cfg.EUHost, "port": cfg.EUPort,
+			"users": []obj{{"id": cfg.TunnelUUID, "encryption": "none", "flow": ""}},
+		}}},
+		"streamSettings": obj{
+			"network":      "xhttp",
+			"xhttpSettings": obj{"path": cfg.TunnelPath},
+			"security":     "reality",
+			"realitySettings": obj{
+				"serverName":  cfg.TunnelReality.ServerName,
+				"publicKey":   cfg.TunnelReality.PublicKey,
+				"shortId":     firstOrEmpty(cfg.TunnelReality.ShortIDs),
+				"fingerprint": "chrome",
+			},
+		},
+	}
+
+	rules := []obj{
+		{"type": "field", "ip": []string{"geoip:private", "geoip:ru"}, "outboundTag": "direct"},
+	}
+	if len(cfg.IntlAllowDomains) > 0 {
+		rules = append(rules, obj{"type": "field", "domain": cfg.IntlAllowDomains, "outboundTag": "direct"})
+	}
+
+	doc := obj{
+		"log":      obj{"loglevel": "warning"},
+		"inbounds": []obj{inbound},
+		"outbounds": []obj{
+			proxyOut,
+			{"protocol": "freedom", "tag": "direct"},
+			{"protocol": "blackhole", "tag": "block"},
+		},
+		"routing": obj{"domainStrategy": "IPIfNonMatch", "rules": rules},
+	}
+	return json.MarshalIndent(doc, "", "  ")
+}
+
+func firstOrEmpty(s []string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	return s[0]
+}
