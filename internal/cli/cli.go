@@ -7,6 +7,7 @@ import (
 	"github.com/KoRORland/rdda/internal/keys"
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subserver"
+	"github.com/KoRORland/rdda/internal/subscription"
 	"github.com/KoRORland/rdda/internal/xrayconf"
 	"github.com/spf13/cobra"
 )
@@ -114,7 +115,7 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s/sub/%s\n", cfg.SubBaseURL, c.Token)
+			fmt.Fprintln(cmd.OutOrStdout(), subscription.ClientURI(cfg, c))
 			return nil
 		},
 	}

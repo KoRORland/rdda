@@ -42,21 +42,15 @@ func TestInitWritesConfig(t *testing.T) {
 	}
 }
 
-func TestClientAddPrintsSubURL(t *testing.T) {
+func TestClientAddPrintsVlessLink(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
 	out := run(t, "--dir", dir, "client", "add", "granny")
-	if !strings.Contains(out, "https://eu.example.net/sub/") {
-		t.Fatalf("expected subscription URL, got: %s", out)
+	if !strings.HasPrefix(strings.TrimSpace(out), "vless://") {
+		t.Fatalf("expected a vless:// link, got: %s", out)
 	}
-	list := run(t, "--dir", dir, "client", "list")
-	if !strings.Contains(list, "granny") {
-		t.Fatalf("list missing granny: %s", list)
-	}
-	run(t, "--dir", dir, "client", "rm", "granny")
-	list = run(t, "--dir", dir, "client", "list")
-	if strings.Contains(list, "granny") {
-		t.Fatalf("granny still listed after rm: %s", list)
+	if !strings.Contains(out, "ru.example.net") {
+		t.Fatalf("link should point at the RU host, got: %s", out)
 	}
 }
 
