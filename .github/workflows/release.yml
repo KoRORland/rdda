@@ -1,0 +1,38 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+      - name: Build binaries
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          LDFLAGS="-s -w -X github.com/KoRORland/rdda/internal/cli.Version=${TAG}"
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+              go build -ldflags "$LDFLAGS" -o "dist/rdda-linux-${arch}" ./cmd/rdda
+          done
+          cd dist && sha256sum rdda-linux-amd64 rdda-linux-arm64 > SHA256SUMS
+      - name: Verify amd64 version string
+        run: |
+          set -euo pipefail
+          # amd64 binary runs on the amd64 runner; confirm the tag was stamped in.
+          out="$(./dist/rdda-linux-amd64 version)"
+          echo "version output: $out"
+          test "$out" = "${GITHUB_REF_NAME}"
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/rdda-linux-amd64
+            dist/rdda-linux-arm64
+            dist/SHA256SUMS
