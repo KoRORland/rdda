@@ -42,18 +42,16 @@ func TestTwoHopTunnel(t *testing.T) {
 
 	// Start EU and RU via run.sh.
 	runSh := filepath.Join(testDir(), "run.sh")
-	cmd := exec.Command("bash", runSh, dir,
-		"20443", "20444", "21080")
+	cmd := exec.Command("bash", runSh, dir, "20443", "20444")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("harness failed: %v\n%s", err, out)
 	}
 
-	// Kill EU+RU on cleanup.
+	// Kill EU+RU on cleanup. pids file has one PID per line; use tr to convert
+	// newlines to spaces so all PIDs are passed to a single kill invocation.
 	t.Cleanup(func() {
-		pids, err := os.ReadFile(filepath.Join(dir, "pids"))
-		if err == nil {
-			_ = exec.Command("bash", "-c", "kill "+string(pids)+" 2>/dev/null").Run()
-		}
+		pidsFile := filepath.Join(dir, "pids")
+		_ = exec.Command("bash", "-c", "kill $(tr '\\n' ' ' < "+pidsFile+") 2>/dev/null").Run()
 	})
 
 	// Load state to build client xray config.

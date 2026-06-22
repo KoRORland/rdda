@@ -56,3 +56,31 @@ func TestRenderEUAcceptsTunnelAndExits(t *testing.T) {
 		t.Error("EU config must not contain per-user client UUIDs")
 	}
 }
+
+func TestRenderClient(t *testing.T) {
+	b, err := RenderClient(cfg(), "client-uuid-9", 10808)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	s := string(b)
+	// Must contain client UUID, socks inbound, xhttp+reality outbound with CLIENT reality params.
+	for _, want := range []string{"client-uuid-9", "socks", "xhttp", "reality", "cpub", "www.microsoft.com", "/cl", `"shortId"`, `"serverName"`, `"publicKey"`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("client config missing %q", want)
+		}
+	}
+	// Must use CLIENT reality params, not tunnel ones.
+	if strings.Contains(s, "tpub") {
+		t.Error("client config must not contain tunnel public key \"tpub\"")
+	}
+	// Client-side REALITY uses singular forms (not server-side plural shortIds/serverNames).
+	for _, absent := range []string{`"shortIds"`, `"serverNames"`, `"privateKey"`} {
+		if strings.Contains(s, absent) {
+			t.Errorf("client config must not contain server-side key %q", absent)
+		}
+	}
+}
