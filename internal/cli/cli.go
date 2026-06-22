@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const Version = "0.1.0-dev"
+// Version is the RDDA release, injected at build time via
+// -ldflags "-X github.com/KoRORland/rdda/internal/cli.Version=<tag>".
+// Local/dev builds report "dev".
+var Version = "dev"
 
 func newRoot() *cobra.Command {
 	var dir string

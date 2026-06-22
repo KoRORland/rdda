@@ -78,3 +78,17 @@ func TestRenderRUEU(t *testing.T) {
 		t.Fatalf("render eu not JSON: %v", err)
 	}
 }
+
+func TestVersionIsOverridable(t *testing.T) {
+	// Version must be a var (ldflags-injectable), defaulting to a non-empty string.
+	if Version == "" {
+		t.Fatal("Version must default to a non-empty value")
+	}
+	orig := Version
+	t.Cleanup(func() { Version = orig })
+	Version = "v9.9.9"
+	out := run(t, "version")
+	if !strings.Contains(out, "v9.9.9") {
+		t.Fatalf("version command should print injected Version, got %q", out)
+	}
+}
