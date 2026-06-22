@@ -7,7 +7,8 @@ Wants=network-online.target
 ExecStart=/usr/local/bin/rdda --dir /etc/rdda serve --addr 127.0.0.1:8080
 Restart=on-failure
 RestartSec=3
-DynamicUser=yes
+User=rdda
+Group=rdda
 ReadOnlyPaths=/etc/rdda
 NoNewPrivileges=yes
 

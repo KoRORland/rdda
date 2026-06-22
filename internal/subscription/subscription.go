@@ -18,7 +18,11 @@ func ClientURI(cfg state.Config, c state.Client) string {
 	q.Set("encryption", "none")
 	q.Set("pbk", cfg.ClientReality.PublicKey)
 	q.Set("sni", cfg.ClientReality.ServerName)
-	q.Set("sid", c.ShortID)
+	sid := ""
+	if len(cfg.ClientReality.ShortIDs) > 0 {
+		sid = cfg.ClientReality.ShortIDs[0]
+	}
+	q.Set("sid", sid)
 	q.Set("fp", "chrome")
 	u := url.URL{
 		Scheme:   "vless",
