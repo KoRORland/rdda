@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/KoRORland/rdda/internal/state"
@@ -37,5 +38,23 @@ func TestInitWritesConfig(t *testing.T) {
 	}
 	if !filepath.IsAbs(dir) { // sanity
 		t.Skip()
+	}
+}
+
+func TestClientAddPrintsSubURL(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
+	out := run(t, "--dir", dir, "client", "add", "granny")
+	if !strings.Contains(out, "https://eu.example.net/sub/") {
+		t.Fatalf("expected subscription URL, got: %s", out)
+	}
+	list := run(t, "--dir", dir, "client", "list")
+	if !strings.Contains(list, "granny") {
+		t.Fatalf("list missing granny: %s", list)
+	}
+	run(t, "--dir", dir, "client", "rm", "granny")
+	list = run(t, "--dir", dir, "client", "list")
+	if strings.Contains(list, "granny") {
+		t.Fatalf("granny still listed after rm: %s", list)
 	}
 }

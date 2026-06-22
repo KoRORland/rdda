@@ -26,6 +26,7 @@ func newRoot() *cobra.Command {
 		Run:   func(cmd *cobra.Command, _ []string) { fmt.Fprintln(cmd.OutOrStdout(), Version) },
 	})
 	root.AddCommand(newInitCmd(&dir))
+	root.AddCommand(newClientCmd(&dir))
 	return root
 }
 
@@ -82,6 +83,67 @@ func newInitCmd(dir *string) *cobra.Command {
 	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "www.apple.com", "REALITY SNI for RU→EU hop")
 	_ = cmd.MarkFlagRequired("ru-host")
 	_ = cmd.MarkFlagRequired("eu-host")
+	return cmd
+}
+
+func newClientCmd(dir *string) *cobra.Command {
+	cmd := &cobra.Command{Use: "client", Short: "Manage clients"}
+
+	add := &cobra.Command{
+		Use:   "add <name>",
+		Short: "Add a client and print its subscription URL",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			c, err := s.AddClient(args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s/sub/%s\n", cfg.SubBaseURL, c.Token)
+			return nil
+		},
+	}
+
+	rm := &cobra.Command{
+		Use:   "rm <name>",
+		Short: "Remove a client",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			return s.RemoveClient(args[0])
+		},
+	}
+
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List clients",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			clients, err := s.ListClients()
+			if err != nil {
+				return err
+			}
+			for _, c := range clients {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", c.Name, c.Created.Format("2006-01-02"))
+			}
+			return nil
+		},
+	}
+
+	cmd.AddCommand(add, rm, list)
 	return cmd
 }
 
