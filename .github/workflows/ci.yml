@@ -24,3 +24,32 @@ jobs:
       - name: Build and install rdda onto PATH
         run: go build -o rdda ./cmd/rdda && sudo mv rdda /usr/local/bin/rdda
       - run: go test -tags=integration ./test/integration/... -v
+  shell:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck install.sh
+        run: |
+          set -euo pipefail
+          if [ -f install.sh ]; then
+            sudo apt-get update && sudo apt-get install -y shellcheck
+            shellcheck install.sh
+            bash -n install.sh
+          else
+            echo "install.sh not present yet; skipping"
+          fi
+  release-dryrun:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+      - name: Build both arches (no publish)
+        run: |
+          set -euo pipefail
+          LDFLAGS="-s -w -X github.com/KoRORland/rdda/internal/cli.Version=v0.0.0-dryrun"
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+              go build -ldflags "$LDFLAGS" -o "/tmp/rdda-${arch}" ./cmd/rdda
+          done
+          test "$(/tmp/rdda-amd64 version)" = "v0.0.0-dryrun"
