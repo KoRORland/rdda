@@ -43,3 +43,36 @@ func TestLoadConfigMissing(t *testing.T) {
 		t.Fatal("expected error loading missing config")
 	}
 }
+
+func TestClientLifecycle(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	c, err := s.AddClient("granny")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.UUID == "" || c.ShortID == "" || c.Token == "" {
+		t.Fatal("client missing generated fields")
+	}
+	if _, err := s.AddClient("granny"); err == nil {
+		t.Fatal("expected duplicate error")
+	}
+	if _, err := s.AddClient(""); err == nil {
+		t.Fatal("expected empty-name error")
+	}
+	_, _ = s.AddClient("uncle")
+	list, err := s.ListClients()
+	if err != nil || len(list) != 2 || list[0].Name != "granny" || list[1].Name != "uncle" {
+		t.Fatalf("list wrong: %+v err=%v", list, err)
+	}
+	got, ok, err := s.ClientByToken(c.Token)
+	if err != nil || !ok || got.Name != "granny" {
+		t.Fatalf("ClientByToken failed: %+v ok=%v err=%v", got, ok, err)
+	}
+	if err := s.RemoveClient("granny"); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = s.ListClients()
+	if len(list) != 1 || list[0].Name != "uncle" {
+		t.Fatalf("after remove: %+v", list)
+	}
+}
