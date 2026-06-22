@@ -22,7 +22,10 @@ ROLE="$1"; shift
 case "$ROLE" in eu|ru) ;; *) fail "role must be 'eu' or 'ru', got '$ROLE'";; esac
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --version) VERSION="${2:-}"; shift 2 || fail "--version needs a value";;
+    --version)
+      VERSION="${2:-}"; shift 2 || fail "--version needs a value"
+      [ -n "$VERSION" ] || fail "--version needs a non-empty value"
+      ;;
     --keep-ssh) KEEP_SSH="yes"; shift;;
     *) fail "unknown argument: $1";;
   esac
@@ -42,7 +45,7 @@ log "role=$ROLE arch=$ARCH version=$VERSION"
 # --- resolve release tag ---
 if [ "$VERSION" = "latest" ]; then
   TAG="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+    | grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
   [ -n "$TAG" ] || fail "could not resolve latest release tag (has a release been published?)"
 else
   TAG="$VERSION"
@@ -62,7 +65,7 @@ log "installed $($BIN_DST version) to $BIN_DST"
 
 # --- install xray-core, disable its stock unit ---
 log "installing xray-core"
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 systemctl disable --now xray.service 2>/dev/null || true
 
 # --- state dir + user ---
