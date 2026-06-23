@@ -85,7 +85,7 @@ See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](
 ## 📱 Quickstart — Clients (your friends & family)
 
 1. Install **Hiddify** ([hiddify.com](https://hiddify.com)) — Android, Windows, or Linux.
-2. Paste the link the operator sent you (it starts with `https://`) as a **profile/subscription**.
+2. Paste the link the operator sent you (it starts with `vless://`) into Hiddify as a **new profile/config**.
 3. Hit **Connect**. That's it.
 
 ---
