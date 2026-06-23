@@ -23,7 +23,8 @@ jobs:
         run: sudo bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
       - name: Build and install rdda onto PATH
         run: go build -o rdda ./cmd/rdda && sudo mv rdda /usr/local/bin/rdda
-      - run: go test -tags=integration ./test/integration/... -v
+      # Real-deploy integration test needs root (systemd units, useradd, /etc/rdda).
+      - run: sudo -E env "PATH=$PATH" go test -tags=integration ./test/integration/... -v
   shell:
     runs-on: ubuntu-24.04
     steps:

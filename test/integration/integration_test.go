@@ -3,14 +3,16 @@
 package integration
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,41 +23,43 @@ import (
 )
 
 const (
-	euPort   = 20443
-	ruPort   = 20444
+	euPort    = 20443
+	ruPort    = 20444
 	socksPort = 21080
 )
 
-// TestTwoHopTunnel boots EU+RU xray instances via run.sh, starts a client xray
-// with a SOCKS5 inbound, and confirms an HTTP request routes through the 2-hop
-// tunnel (client → RU → EU → internet).
-func TestTwoHopTunnel(t *testing.T) {
-	if _, err := exec.LookPath("xray"); err != nil {
-		t.Skip("xray binary not installed")
+// TestRealDeployTunnel provisions EU and RU exactly like a real deployment — the
+// ACTUAL rdda-xray.service systemd units, running as the rdda user, reading
+// configs from 0700 /etc/rdda{,-ru} owned by rdda — then routes an HTTP request
+// through the 2-hop tunnel (client → RU → EU → internet). A unit/user/permission
+// bug (e.g. a service that cannot read its config) makes this test fail.
+func TestRealDeployTunnel(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("real-deploy integration test requires root (systemd/useradd/chown)")
 	}
-	if _, err := exec.LookPath("rdda"); err != nil {
-		t.Skip("rdda binary not installed")
-	}
-
-	dir := t.TempDir()
-	stateDir := filepath.Join(dir, "state")
-
-	// Start EU and RU via run.sh.
-	runSh := filepath.Join(testDir(), "run.sh")
-	cmd := exec.Command("bash", runSh, dir, "20443", "20444")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("harness failed: %v\n%s", err, out)
+	for _, bin := range []string{"xray", "rdda", "systemctl", "jq"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not available", bin)
+		}
 	}
 
-	// Kill EU+RU on cleanup. pids file has one PID per line; use tr to convert
-	// newlines to spaces so all PIDs are passed to a single kill invocation.
-	t.Cleanup(func() {
-		pidsFile := filepath.Join(dir, "pids")
-		_ = exec.Command("bash", "-c", "kill $(tr '\\n' ' ' < "+pidsFile+") 2>/dev/null").Run()
-	})
+	cmd := exec.Command("bash", filepath.Join(".", "run.sh"), strconv.Itoa(euPort), strconv.Itoa(ruPort))
+	out, err := cmd.CombinedOutput()
+	t.Logf("run.sh output:\n%s", out)
+	t.Cleanup(teardown)
+	if err != nil {
+		t.Fatalf("real-deploy harness failed: %v", err)
+	}
 
-	// Load state to build client xray config.
-	st, err := state.Open(stateDir)
+	// Both server units must be active under the real unit + rdda user + perms.
+	for _, unit := range []string{"rdda-xray", "rdda-xray-ru"} {
+		if st := unitState(unit); st != "active" {
+			t.Fatalf("%s not active (state=%s)\n%s", unit, st, journal(unit))
+		}
+	}
+
+	// Build the client config from the deployed EU state, as a user device would.
+	st, err := state.Open("/etc/rdda")
 	if err != nil {
 		t.Fatalf("open state: %v", err)
 	}
@@ -67,38 +71,31 @@ func TestTwoHopTunnel(t *testing.T) {
 	if err != nil || len(clients) == 0 {
 		t.Fatalf("list clients: %v (count=%d)", err, len(clients))
 	}
-
-	// Patch RU port into config for the client outbound.
+	cfg.RUHost = "127.0.0.1"
 	cfg.RUPort = ruPort
 
 	clientJSON, err := xrayconf.RenderClient(cfg, clients[0].UUID, socksPort)
 	if err != nil {
 		t.Fatalf("render client config: %v", err)
 	}
-	clientCfgPath := filepath.Join(dir, "client.json")
+	clientCfgPath := filepath.Join(t.TempDir(), "client.json")
 	if err := os.WriteFile(clientCfgPath, clientJSON, 0o600); err != nil {
 		t.Fatalf("write client.json: %v", err)
 	}
-	t.Logf("client.json:\n%s", prettyJSON(clientJSON))
 
-	// Start client xray.
+	var clientLog bytes.Buffer
 	clientProc := exec.Command("xray", "run", "-c", clientCfgPath)
-	clientLog, _ := os.Create(filepath.Join(dir, "client.log"))
-	clientProc.Stdout = clientLog
-	clientProc.Stderr = clientLog
+	clientProc.Stdout = &clientLog
+	clientProc.Stderr = &clientLog
 	if err := clientProc.Start(); err != nil {
 		t.Fatalf("start client xray: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = clientProc.Process.Kill()
-		_ = clientLog.Close()
-	})
+	t.Cleanup(func() { _ = clientProc.Process.Kill() })
 
-	// Wait for all three instances to settle.
+	// Let REALITY handshakes settle.
 	time.Sleep(3 * time.Second)
 
-	// Build http.Client that dials through the SOCKS5 proxy.
-	rawDialer, err := proxy.SOCKS5("tcp", "127.0.0.1:21080", nil, proxy.Direct)
+	rawDialer, err := proxy.SOCKS5("tcp", "127.0.0.1:"+strconv.Itoa(socksPort), nil, proxy.Direct)
 	if err != nil {
 		t.Fatalf("create SOCKS5 dialer: %v", err)
 	}
@@ -115,10 +112,9 @@ func TestTwoHopTunnel(t *testing.T) {
 
 	resp, err := httpClient.Get("http://detectportal.firefox.com/success.txt")
 	if err != nil {
-		// Dump logs for diagnosis.
-		logDump(t, dir, "eu.log")
-		logDump(t, dir, "ru.log")
-		logDump(t, dir, "client.log")
+		t.Logf("client.log:\n%s", clientLog.String())
+		t.Logf("rdda-xray journal:\n%s", journal("rdda-xray"))
+		t.Logf("rdda-xray-ru journal:\n%s", journal("rdda-xray-ru"))
 		t.Fatalf("request through tunnel failed: %v", err)
 	}
 	defer resp.Body.Close()
@@ -129,25 +125,21 @@ func TestTwoHopTunnel(t *testing.T) {
 	t.Logf("tunnel response (%d bytes): %s", len(body), body)
 }
 
-// testDir returns the directory containing this test file at runtime.
-func testDir() string {
-	// The test binary's working directory is the package directory.
-	return "."
+func unitState(unit string) string {
+	out, _ := exec.Command("systemctl", "is-active", unit).Output()
+	return strings.TrimSpace(string(out))
 }
 
-func prettyJSON(b []byte) string {
-	var v interface{}
-	if err := json.Unmarshal(b, &v); err != nil {
-		return string(b)
-	}
-	out, _ := json.MarshalIndent(v, "", "  ")
+func journal(unit string) string {
+	out, _ := exec.Command("journalctl", "-u", unit, "--no-pager", "-n", "40").CombinedOutput()
 	return string(out)
 }
 
-func logDump(t *testing.T, dir, name string) {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join(dir, name))
-	if err == nil {
-		t.Logf("=== %s ===\n%s", name, b)
-	}
+func teardown() {
+	_ = exec.Command("systemctl", "stop", "rdda-xray.service", "rdda-xray-ru.service").Run()
+	_ = os.Remove("/etc/systemd/system/rdda-xray.service")
+	_ = os.Remove("/etc/systemd/system/rdda-xray-ru.service")
+	_ = exec.Command("systemctl", "daemon-reload").Run()
+	_ = os.RemoveAll("/etc/rdda")
+	_ = os.RemoveAll("/etc/rdda-ru")
 }
