@@ -18,19 +18,30 @@ type Reality struct {
 	ShortIDs   []string `yaml:"short_ids"`
 }
 
+// Cloudflare holds the EU-side Cloudflare Tunnel parameters. An empty
+// TunnelHostname means Cloudflare fronting is disabled (v0.1 REALITY behavior).
+type Cloudflare struct {
+	TunnelHostname  string `yaml:"tunnel_hostname"`
+	SubHostname     string `yaml:"sub_hostname"`
+	TunnelID        string `yaml:"tunnel_id"`
+	CredentialsFile string `yaml:"credentials_file"`
+}
+
 // Config is the full RDDA deployment description (the EU source of truth).
 type Config struct {
-	RUHost           string   `yaml:"ru_host"`
-	RUPort           int      `yaml:"ru_port"`
-	EUHost           string   `yaml:"eu_host"`
-	EUPort           int      `yaml:"eu_port"`
-	ClientPath       string   `yaml:"client_path"`
-	TunnelPath       string   `yaml:"tunnel_path"`
-	TunnelUUID       string   `yaml:"tunnel_uuid"`
-	SubBaseURL       string   `yaml:"sub_base_url"`
-	IntlAllowDomains []string `yaml:"intl_allow_domains"`
-	ClientReality    Reality  `yaml:"client_reality"`
-	TunnelReality    Reality  `yaml:"tunnel_reality"`
+	RUHost           string     `yaml:"ru_host"`
+	RUPort           int        `yaml:"ru_port"`
+	EUHost           string     `yaml:"eu_host"`
+	EUPort           int        `yaml:"eu_port"`
+	ClientPath       string     `yaml:"client_path"`
+	TunnelPath       string     `yaml:"tunnel_path"`
+	TunnelUUID       string     `yaml:"tunnel_uuid"`
+	SubBaseURL       string     `yaml:"sub_base_url"`
+	IntlAllowDomains []string   `yaml:"intl_allow_domains"`
+	ClientReality    Reality    `yaml:"client_reality"`
+	TunnelReality    Reality    `yaml:"tunnel_reality"`
+	Cloudflare       Cloudflare `yaml:"cloudflare"`
+	PullToken        string     `yaml:"pull_token"`
 }
 
 // Store is a directory-backed RDDA state store.
@@ -70,3 +81,6 @@ func (s *Store) LoadConfig() (Config, error) {
 	}
 	return c, nil
 }
+
+// CFEnabled reports whether the RU→EU hop should go through Cloudflare.
+func (c Config) CFEnabled() bool { return c.Cloudflare.TunnelHostname != "" }
