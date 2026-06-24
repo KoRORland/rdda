@@ -3,8 +3,12 @@ package cli
 import (
 	"fmt"
 	"net/http"
+	"os/exec"
+	"strings"
 
+	"github.com/KoRORland/rdda/internal/cfconfig"
 	"github.com/KoRORland/rdda/internal/keys"
+	"github.com/KoRORland/rdda/internal/pull"
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subserver"
 	"github.com/KoRORland/rdda/internal/subscription"
@@ -36,11 +40,13 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newClientCmd(&dir))
 	root.AddCommand(newRenderCmd(&dir))
 	root.AddCommand(newServeCmd(&dir))
+	root.AddCommand(newPullCmd(&dir))
 	return root
 }
 
 func newInitCmd(dir *string) *cobra.Command {
 	var ruHost, euHost, clientSNI, tunnelSNI string
+	var cfTunnelHost, cfSubHost, cfTunnelID, cfCredsFile string
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate keys and write config.yaml",
@@ -65,6 +71,10 @@ func newInitCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			pullTok, err := keys.NewToken()
+			if err != nil {
+				return err
+			}
 			cfg := state.Config{
 				RUHost: ruHost, RUPort: 443, EUHost: euHost, EUPort: 443,
 				ClientPath: "/cl", TunnelPath: "/tn",
@@ -78,6 +88,13 @@ func newInitCmd(dir *string) *cobra.Command {
 					Target: tunnelSNI + ":443", ServerName: tunnelSNI,
 					PrivateKey: tr.PrivateKey, PublicKey: tr.PublicKey, ShortIDs: []string{tsid},
 				},
+				Cloudflare: state.Cloudflare{
+					TunnelHostname:  cfTunnelHost,
+					SubHostname:     cfSubHost,
+					TunnelID:        cfTunnelID,
+					CredentialsFile: cfCredsFile,
+				},
+				PullToken: pullTok,
 			}
 			if err := s.SaveConfig(cfg); err != nil {
 				return err
@@ -92,6 +109,10 @@ func newInitCmd(dir *string) *cobra.Command {
 	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "www.apple.com", "REALITY SNI for RU→EU hop")
 	_ = cmd.MarkFlagRequired("ru-host")
 	_ = cmd.MarkFlagRequired("eu-host")
+	cmd.Flags().StringVar(&cfTunnelHost, "cf-tunnel-host", "", "Cloudflare hostname for the RU→EU data hop (optional; enables CF fronting)")
+	cmd.Flags().StringVar(&cfSubHost, "cf-sub-host", "", "Cloudflare hostname for the subscription endpoint")
+	cmd.Flags().StringVar(&cfTunnelID, "cf-tunnel-id", "", "Cloudflare Tunnel ID")
+	cmd.Flags().StringVar(&cfCredsFile, "cf-credentials-file", "", "path to the cloudflared tunnel credentials JSON")
 	return cmd
 }
 
@@ -202,6 +223,26 @@ func newRenderCmd(dir *string) *cobra.Command {
 			return nil
 		},
 	})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "cloudflared",
+		Short: "Render the cloudflared ingress config (EU node)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			b, err := cfconfig.Render(cfg, 8080)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			return nil
+		},
+	})
 	return cmd
 }
 
@@ -220,6 +261,36 @@ func newServeCmd(dir *string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&addr, "addr", ":8080", "listen address")
+	return cmd
+}
+
+func newPullCmd(dir *string) *cobra.Command {
+	var from, token, dest, reloadCmd string
+	cmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Pull the RU xray config from EU (over Cloudflare) and reload",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if from == "" || token == "" {
+				return fmt.Errorf("--from and --token are required")
+			}
+			var reload func() error
+			if reloadCmd != "" {
+				reload = func() error {
+					parts := strings.Fields(reloadCmd)
+					return exec.Command(parts[0], parts[1:]...).Run()
+				}
+			}
+			if err := pull.Run(pull.Options{URL: from, Token: token, Dest: dest, Reload: reload}); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "pulled RU config to %s\n", dest)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&from, "from", "", "EU /ru/config URL (required)")
+	cmd.Flags().StringVar(&token, "token", "", "pull token (required)")
+	cmd.Flags().StringVar(&dest, "dest", "/etc/rdda-ru/xray.json", "destination xray config path")
+	cmd.Flags().StringVar(&reloadCmd, "reload-cmd", "", "command run after a successful pull (e.g. 'systemctl reload-or-restart rdda-xray')")
 	return cmd
 }
 
