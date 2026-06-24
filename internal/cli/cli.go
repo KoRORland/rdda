@@ -40,7 +40,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newClientCmd(&dir))
 	root.AddCommand(newRenderCmd(&dir))
 	root.AddCommand(newServeCmd(&dir))
-	root.AddCommand(newPullCmd(&dir))
+	root.AddCommand(newPullCmd())
 	return root
 }
 
@@ -264,7 +264,7 @@ func newServeCmd(dir *string) *cobra.Command {
 	return cmd
 }
 
-func newPullCmd(dir *string) *cobra.Command {
+func newPullCmd() *cobra.Command {
 	var from, token, dest, reloadCmd string
 	cmd := &cobra.Command{
 		Use:   "pull",
@@ -289,7 +289,7 @@ func newPullCmd(dir *string) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&from, "from", "", "EU /ru/config URL (required)")
 	cmd.Flags().StringVar(&token, "token", "", "pull token (required)")
-	cmd.Flags().StringVar(&dest, "dest", "/etc/rdda-ru/xray.json", "destination xray config path")
+	cmd.Flags().StringVar(&dest, "dest", "/etc/rdda/xray.json", "destination xray config path")
 	cmd.Flags().StringVar(&reloadCmd, "reload-cmd", "systemctl reload-or-restart rdda-xray", "command run after a successful pull")
 	return cmd
 }

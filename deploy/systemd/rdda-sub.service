@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/rdda --dir /etc/rdda serve --addr 127.0.0.1:8080
+ExecStart=/usr/local/bin/rdda serve --addr 127.0.0.1:8080
 Restart=on-failure
 RestartSec=3
 User=rdda

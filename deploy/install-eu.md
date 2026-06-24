@@ -15,8 +15,8 @@ security updates, and configures the firewall to allow 443 and 22.
 
 ## 2. Initialize state and the EU data plane
 
-    rdda --dir /etc/rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
-    rdda --dir /etc/rdda render eu > /etc/rdda/xray.json
+    rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
+    rdda render eu > /etc/rdda/xray.json
     chown -R rdda:rdda /etc/rdda
     systemctl enable --now rdda-xray
 
@@ -25,7 +25,7 @@ security updates, and configures the firewall to allow 443 and 22.
 
 ## 3. Produce the RU node's config
 
-    rdda --dir /etc/rdda render ru
+    rdda render ru
 
 Copy that output to the RU node's `/etc/rdda/xray.json` (see `install-ru.md`).
 Re-run and re-copy whenever you add or remove clients (pull-sync is a v0.2
@@ -33,7 +33,7 @@ feature).
 
 ## 4. Add a client and hand out the link
 
-    rdda --dir /etc/rdda client add aunt-olga
+    rdda client add aunt-olga
 
 This prints a `vless://...` link. Send it to the person over a private channel
 (Signal, Telegram, in person); they paste it into Hiddify and connect. In v0.1
@@ -72,7 +72,7 @@ path printed by the command). Record both values — you need them in the next s
 Pass the tunnel parameters to `rdda init` (re-run with the existing config or
 use `--force` if you already ran init in step 2):
 
-    rdda --dir /etc/rdda init \
+    rdda init \
         --ru-host <RU_IP> --eu-host <EU_HOST> \
         --cf-tunnel-host <tunnel-hostname>.example.com \
         --cf-sub-host    <sub-hostname>.example.com \
@@ -81,7 +81,7 @@ use `--force` if you already ran init in step 2):
 
 ### 5.4 Write the cloudflared config
 
-    rdda --dir /etc/rdda render cloudflared > /etc/cloudflared/config.yml
+    rdda render cloudflared > /etc/cloudflared/config.yml
     chmod 600 /etc/cloudflared/config.yml
 
 ### 5.5 Create DNS routes

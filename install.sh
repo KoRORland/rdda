@@ -114,16 +114,16 @@ cat <<EOF
 EOF
 if [ "$ROLE" = "eu" ]; then
   cat <<'EOF'
-  1. rdda --dir /etc/rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
-  2. rdda --dir /etc/rdda render eu > /etc/rdda/xray.json
+  1. rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
+  2. rdda render eu > /etc/rdda/xray.json
   3. chown -R rdda:rdda /etc/rdda
   4. systemctl enable --now rdda-xray
-  5. rdda --dir /etc/rdda client add <name>   # send the printed vless:// link privately
-  (RU config: run `rdda --dir /etc/rdda render ru` and copy the output to the RU node.)
+  5. rdda client add <name>   # send the printed vless:// link privately
+  (RU config: run `rdda render ru` and copy the output to the RU node.)
 EOF
 else
   cat <<'EOF'
-  1. On the EU node, run: rdda --dir /etc/rdda render ru
+  1. On the EU node, run: rdda render ru
   2. Copy that output to this RU node's /etc/rdda/xray.json
   3. chown -R rdda:rdda /etc/rdda
   4. systemctl enable --now rdda-xray

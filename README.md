@@ -65,19 +65,19 @@ You need **two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
 1. **EU node** (SSH is fine here):
    ```bash
    curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- eu
-   rdda --dir /etc/rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
-   rdda --dir /etc/rdda render eu > /etc/rdda/xray.json
+   rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
+   rdda render eu > /etc/rdda/xray.json
    chown -R rdda:rdda /etc/rdda && systemctl enable --now rdda-xray
    ```
 2. **RU node** (run from your VPS provider **console** — the installer closes SSH):
    ```bash
    curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- ru
    ```
-   Then, on EU, `rdda --dir /etc/rdda render ru` and copy the output to the RU node's
+   Then, on EU, `rdda render ru` and copy the output to the RU node's
    `/etc/rdda/xray.json`; on RU `systemctl enable --now rdda-xray`.
 3. **Add a friend** (on EU) and send them the printed `vless://` link privately:
    ```bash
-   rdda --dir /etc/rdda client add aunt-olga
+   rdda client add aunt-olga
    ```
 
 See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](deploy/install-ru.md) for the detailed walkthrough.

@@ -21,7 +21,7 @@ designed to run hands-off (auto security updates + systemd restart-on-failure).
 
 On the **EU** node:
 
-    rdda --dir /etc/rdda render ru
+    rdda render ru
 
 Copy that output into this RU node's `/etc/rdda/xray.json` (paste it via the
 console, or use a one-time secure copy — there is no exposed management channel
@@ -52,13 +52,12 @@ On the **EU** node, look up the pull token:
 
 Then on the **RU** node (via the provider console):
 
-    sudo mkdir -p /etc/rdda-ru
-    sudo tee /etc/rdda-ru/pull.env > /dev/null <<'EOF'
+    sudo tee /etc/rdda/pull.env > /dev/null <<'EOF'
     RDDA_PULL_FROM=https://<cf-sub-host>/ru/config
     RDDA_PULL_TOKEN=<pull_token from EU config.yaml>
     EOF
-    sudo chmod 600 /etc/rdda-ru/pull.env
-    sudo chown rdda:rdda /etc/rdda-ru/pull.env
+    sudo chmod 600 /etc/rdda/pull.env
+    sudo chown rdda:rdda /etc/rdda/pull.env
 
 Replace `<cf-sub-host>` with the Cloudflare sub hostname configured on the EU
 node (e.g. `sub.example.com`).
@@ -90,4 +89,4 @@ Trigger the first pull immediately and check its status:
     sudo systemctl status rdda-pull.service
 
 A successful run exits 0 and logs the fetch URL. The RU node no longer needs
-a manual `render ru` copy — the timer keeps `/etc/rdda-ru/xray.json` in sync.
+a manual `render ru` copy — the timer keeps `/etc/rdda/xray.json` in sync.
