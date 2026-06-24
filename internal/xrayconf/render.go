@@ -33,23 +33,44 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 		"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
 	}
 
-	proxyOut := obj{
-		"protocol": "vless", "tag": "proxy",
-		"settings": obj{"vnext": []obj{{
-			"address": cfg.EUHost, "port": cfg.EUPort,
-			"users": []obj{{"id": cfg.TunnelUUID, "encryption": "none", "flow": ""}},
-		}}},
-		"streamSettings": obj{
-			"network":      "xhttp",
-			"xhttpSettings": obj{"path": cfg.TunnelPath},
-			"security":     "reality",
-			"realitySettings": obj{
-				"serverName":  cfg.TunnelReality.ServerName,
-				"publicKey":   cfg.TunnelReality.PublicKey,
-				"shortId":     firstOrEmpty(cfg.TunnelReality.ShortIDs),
-				"fingerprint": "chrome",
+	var proxyOut obj
+	if cfg.CFEnabled() {
+		proxyOut = obj{
+			"protocol": "vless", "tag": "proxy",
+			"settings": obj{"vnext": []obj{{
+				"address": cfg.Cloudflare.TunnelHostname, "port": 443,
+				"users": []obj{{"id": cfg.TunnelUUID, "encryption": "none", "flow": ""}},
+			}}},
+			"streamSettings": obj{
+				"network":       "xhttp",
+				"xhttpSettings": obj{"path": cfg.TunnelPath, "host": cfg.Cloudflare.TunnelHostname},
+				"security":      "tls",
+				"tlsSettings": obj{
+					"serverName":  cfg.Cloudflare.TunnelHostname,
+					"alpn":        []string{"h2", "http/1.1"},
+					"fingerprint": "chrome",
+				},
 			},
-		},
+		}
+	} else {
+		proxyOut = obj{
+			"protocol": "vless", "tag": "proxy",
+			"settings": obj{"vnext": []obj{{
+				"address": cfg.EUHost, "port": cfg.EUPort,
+				"users": []obj{{"id": cfg.TunnelUUID, "encryption": "none", "flow": ""}},
+			}}},
+			"streamSettings": obj{
+				"network":       "xhttp",
+				"xhttpSettings": obj{"path": cfg.TunnelPath},
+				"security":      "reality",
+				"realitySettings": obj{
+					"serverName":  cfg.TunnelReality.ServerName,
+					"publicKey":   cfg.TunnelReality.PublicKey,
+					"shortId":     firstOrEmpty(cfg.TunnelReality.ShortIDs),
+					"fingerprint": "chrome",
+				},
+			},
+		}
 	}
 
 	rules := []obj{
@@ -115,24 +136,41 @@ func RenderClient(cfg state.Config, clientUUID string, socksPort int) ([]byte, e
 
 // RenderEU builds the EU node config: terminate the RU tunnel, exit to the internet.
 func RenderEU(cfg state.Config) ([]byte, error) {
-	inbound := obj{
-		"listen": "0.0.0.0", "port": cfg.EUPort, "protocol": "vless", "tag": "in",
-		"settings": obj{
-			"clients":    []obj{{"id": cfg.TunnelUUID, "flow": ""}},
-			"decryption": "none",
-		},
-		"streamSettings": obj{
-			"network":      "xhttp",
-			"xhttpSettings": obj{"path": cfg.TunnelPath},
-			"security":     "reality",
-			"realitySettings": obj{
-				"target":      cfg.TunnelReality.Target,
-				"serverNames": []string{cfg.TunnelReality.ServerName},
-				"privateKey":  cfg.TunnelReality.PrivateKey,
-				"shortIds":    cfg.TunnelReality.ShortIDs,
+	var inbound obj
+	if cfg.CFEnabled() {
+		inbound = obj{
+			"listen": "127.0.0.1", "port": cfg.EUPort, "protocol": "vless", "tag": "in",
+			"settings": obj{
+				"clients":    []obj{{"id": cfg.TunnelUUID, "flow": ""}},
+				"decryption": "none",
 			},
-		},
-		"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
+			"streamSettings": obj{
+				"network":       "xhttp",
+				"xhttpSettings": obj{"path": cfg.TunnelPath},
+				"security":      "none",
+			},
+			"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
+		}
+	} else {
+		inbound = obj{
+			"listen": "0.0.0.0", "port": cfg.EUPort, "protocol": "vless", "tag": "in",
+			"settings": obj{
+				"clients":    []obj{{"id": cfg.TunnelUUID, "flow": ""}},
+				"decryption": "none",
+			},
+			"streamSettings": obj{
+				"network":       "xhttp",
+				"xhttpSettings": obj{"path": cfg.TunnelPath},
+				"security":      "reality",
+				"realitySettings": obj{
+					"target":      cfg.TunnelReality.Target,
+					"serverNames": []string{cfg.TunnelReality.ServerName},
+					"privateKey":  cfg.TunnelReality.PrivateKey,
+					"shortIds":    cfg.TunnelReality.ShortIDs,
+				},
+			},
+			"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
+		}
 	}
 	doc := obj{
 		"log":      obj{"loglevel": "warning"},
