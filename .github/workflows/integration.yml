@@ -1,0 +1,46 @@
+name: integration
+# Heavy end-to-end test: installs xray-core and runs the REAL systemd deployment
+# (EU + RU units as the rdda user) under sudo. Deliberately NOT run on every push.
+# Smart-hybrid cadence: integration-relevant code changes, nightly, manual, and
+# (via workflow_call from release.yml) on version tags.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'internal/**'
+      - 'cmd/**'
+      - 'test/**'
+      - 'deploy/**'
+      - 'install.sh'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/integration.yml'
+  pull_request:
+    paths:
+      - 'internal/**'
+      - 'cmd/**'
+      - 'test/**'
+      - 'deploy/**'
+      - 'install.sh'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/integration.yml'
+  schedule:
+    - cron: '0 3 * * *'   # nightly drift/upstream-xray check
+  workflow_dispatch: {}    # manual on-demand
+  workflow_call: {}        # gate releases (called from release.yml on v* tags)
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+      # Fail fast before the expensive xray install if unit tests are broken.
+      - run: go vet ./... && go test ./...
+      - name: Install xray-core
+        run: sudo bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+      - name: Build and install rdda onto PATH
+        run: go build -o rdda ./cmd/rdda && sudo mv rdda /usr/local/bin/rdda
+      # Real-deploy integration test needs root (systemd units, useradd, /etc/rdda).
+      - run: sudo -E env "PATH=$PATH" go test -tags=integration ./test/integration/... -v

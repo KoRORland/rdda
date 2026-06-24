@@ -2,7 +2,9 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '*.txt']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '*.txt']
 jobs:
   unit:
     runs-on: ubuntu-24.04
@@ -12,19 +14,6 @@ jobs:
         with: { go-version: "1.22" }
       - run: go vet ./...
       - run: go test ./...
-  integration:
-    runs-on: ubuntu-24.04
-    needs: unit
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.22" }
-      - name: Install xray-core
-        run: sudo bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-      - name: Build and install rdda onto PATH
-        run: go build -o rdda ./cmd/rdda && sudo mv rdda /usr/local/bin/rdda
-      # Real-deploy integration test needs root (systemd units, useradd, /etc/rdda).
-      - run: sudo -E env "PATH=$PATH" go test -tags=integration ./test/integration/... -v
   shell:
     runs-on: ubuntu-24.04
     steps:

@@ -5,7 +5,11 @@ on:
 permissions:
   contents: write
 jobs:
+  # Run the full heavy integration suite as a pre-publish gate on every v* tag.
+  integration:
+    uses: ./.github/workflows/integration.yml
   build:
+    needs: integration
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
