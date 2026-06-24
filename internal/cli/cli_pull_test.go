@@ -21,7 +21,7 @@ func TestPullCommand_WritesDest(t *testing.T) {
 
 	dest := filepath.Join(t.TempDir(), "xray.json")
 	root := newRoot()
-	root.SetArgs([]string{"pull", "--from", srv.URL + "/ru/config", "--token", "tok", "--dest", dest})
+	root.SetArgs([]string{"pull", "--from", srv.URL + "/ru/config", "--token", "tok", "--dest", dest, "--reload-cmd", "true"})
 	var out bytes.Buffer
 	root.SetOut(&out)
 	if err := root.Execute(); err != nil {

@@ -290,7 +290,7 @@ func newPullCmd(dir *string) *cobra.Command {
 	cmd.Flags().StringVar(&from, "from", "", "EU /ru/config URL (required)")
 	cmd.Flags().StringVar(&token, "token", "", "pull token (required)")
 	cmd.Flags().StringVar(&dest, "dest", "/etc/rdda-ru/xray.json", "destination xray config path")
-	cmd.Flags().StringVar(&reloadCmd, "reload-cmd", "", "command run after a successful pull (e.g. 'systemctl reload-or-restart rdda-xray')")
+	cmd.Flags().StringVar(&reloadCmd, "reload-cmd", "systemctl reload-or-restart rdda-xray", "command run after a successful pull")
 	return cmd
 }
 
