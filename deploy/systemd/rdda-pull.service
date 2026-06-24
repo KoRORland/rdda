@@ -1,0 +1,12 @@
+[Unit]
+Description=RDDA RU config pull-sync (one-shot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/rdda-ru/pull.env
+ExecStart=/usr/local/bin/rdda --dir /etc/rdda-ru pull --from ${RDDA_PULL_FROM} --token ${RDDA_PULL_TOKEN} --dest /etc/rdda-ru/xray.json
+User=rdda
+Group=rdda
+NoNewPrivileges=yes

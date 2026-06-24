@@ -42,3 +42,68 @@ there is no public subscription endpoint — delivery is out-of-band on purpose
 
 > The subscription server (`rdda-sub`) is installed but dormant in v0.1; it
 > comes online behind Cloudflare in v0.2.
+
+## 5. Cloudflare Tunnel (v0.2)
+
+This section brings up the Cloudflare tunnel so the subscription endpoint and
+the xray ingress are reachable without exposing any inbound port to the internet.
+After this, **close all inbound firewall ports except 22** — xray and the sub
+server now listen on loopback only and are reached exclusively via cloudflared.
+
+### 5.1 Install cloudflared
+
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+        | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+    echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] \
+        https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
+        | sudo tee /etc/apt/sources.list.d/cloudflared.list
+    sudo apt-get update && sudo apt-get install -y cloudflared
+
+### 5.2 Authenticate and create the tunnel
+
+    cloudflared tunnel login          # opens browser; authorizes your Cloudflare account
+    cloudflared tunnel create rdda    # note the Tunnel ID and credentials file path printed here
+
+The credentials file is written to `~/.cloudflared/<TUNNEL_ID>.json` (or the
+path printed by the command). Record both values — you need them in the next step.
+
+### 5.3 Re-initialize with tunnel flags
+
+Pass the tunnel parameters to `rdda init` (re-run with the existing config or
+use `--force` if you already ran init in step 2):
+
+    rdda --dir /etc/rdda init \
+        --ru-host <RU_IP> --eu-host <EU_HOST> \
+        --cf-tunnel-host <tunnel-hostname>.example.com \
+        --cf-sub-host    <sub-hostname>.example.com \
+        --cf-tunnel-id   <TUNNEL_ID> \
+        --cf-credentials-file /etc/cloudflared/<TUNNEL_ID>.json
+
+### 5.4 Write the cloudflared config
+
+    rdda --dir /etc/rdda render cloudflared > /etc/cloudflared/config.yml
+    chmod 600 /etc/cloudflared/config.yml
+
+### 5.5 Create DNS routes
+
+    cloudflared tunnel route dns rdda <tunnel-hostname>.example.com
+    cloudflared tunnel route dns rdda <sub-hostname>.example.com
+
+### 5.6 Create the cloudflared system user and enable the service
+
+    sudo useradd --system --no-create-home --shell /usr/sbin/nologin cloudflared
+    sudo cp /etc/cloudflared/<TUNNEL_ID>.json /etc/cloudflared/
+    sudo chown -R cloudflared:cloudflared /etc/cloudflared
+    sudo cp deploy/systemd/cloudflared.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now cloudflared
+
+### 5.7 Lock the firewall
+
+With all traffic routed through cloudflared, close every inbound port except SSH:
+
+    sudo ufw delete allow 443/tcp   # or your equivalent firewall rule
+    # 22/tcp must stay open for management
+    sudo ufw status
+
+Verify the tunnel is up: `cloudflared tunnel info rdda`.

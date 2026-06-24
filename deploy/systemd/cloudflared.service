@@ -1,0 +1,15 @@
+[Unit]
+Description=RDDA cloudflared tunnel (EU ingress)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml --no-autoupdate run
+Restart=on-failure
+RestartSec=3
+User=cloudflared
+Group=cloudflared
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
