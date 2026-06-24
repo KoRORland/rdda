@@ -92,7 +92,7 @@ use `--force` if you already ran init in step 2):
 ### 5.6 Create the cloudflared system user and enable the service
 
     sudo useradd --system --no-create-home --shell /usr/sbin/nologin cloudflared
-    sudo cp /etc/cloudflared/<TUNNEL_ID>.json /etc/cloudflared/
+    sudo cp ~/.cloudflared/<TUNNEL_ID>.json /etc/cloudflared/
     sudo chown -R cloudflared:cloudflared /etc/cloudflared
     sudo cp deploy/systemd/cloudflared.service /etc/systemd/system/
     sudo systemctl daemon-reload
