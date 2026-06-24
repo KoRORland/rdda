@@ -127,7 +127,8 @@ without rearchitecting.
   of the June-2026 passive DPI scheme (subnet via CDN, frequency via XMUX, fingerprint via
   REALITY/real-stack).
 - **Future profiles (drop-in):** Vision+REALITY direct (faster, for un-flagged subnets),
-  AmneziaWG, NaiveProxy, and `zapret`/`nfqws` desync as an egress-handshake helper.
+  AmneziaWG, NaiveProxy, and `zapret2`/`nfqws2` (Lua-based desync) as an egress-handshake
+  helper. (zapret v1/`nfqws` is EOL; zapret2 is the maintained successor.)
 
 Switching engines = change one profile value + its template; no other code changes.
 
