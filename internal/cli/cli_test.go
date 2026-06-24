@@ -73,6 +73,33 @@ func TestRenderRUEU(t *testing.T) {
 	}
 }
 
+func TestRenderClient(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
+
+	const uuid = "11111111-2222-3333-4444-555555555555"
+	out := run(t, "--dir", dir, "render", "client", "--uuid", uuid, "--socks-port", "19080")
+
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("render client not JSON: %v\n%s", err, out)
+	}
+	inbounds, ok := doc["inbounds"].([]any)
+	if !ok || len(inbounds) == 0 {
+		t.Fatalf("render client missing inbounds: %s", out)
+	}
+	in := inbounds[0].(map[string]any)
+	if in["protocol"] != "socks" {
+		t.Errorf("expected socks inbound, got %v", in["protocol"])
+	}
+	if port, _ := in["port"].(float64); int(port) != 19080 {
+		t.Errorf("expected socks inbound on port 19080, got %v", in["port"])
+	}
+	if !strings.Contains(out, uuid) {
+		t.Errorf("render client output should embed the client UUID, got: %s", out)
+	}
+}
+
 func TestVersionIsOverridable(t *testing.T) {
 	// Version must be a var (ldflags-injectable), defaulting to a non-empty string.
 	if Version == "" {

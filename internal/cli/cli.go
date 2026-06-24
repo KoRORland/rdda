@@ -178,6 +178,8 @@ func newClientCmd(dir *string) *cobra.Command {
 }
 
 func newRenderCmd(dir *string) *cobra.Command {
+	var clientUUID string
+	var socksPort int
 	cmd := &cobra.Command{Use: "render", Short: "Render xray configs"}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "ru",
@@ -223,6 +225,30 @@ func newRenderCmd(dir *string) *cobra.Command {
 			return nil
 		},
 	})
+	clientCmd := &cobra.Command{
+		Use:   "client",
+		Short: "Render a client-side xray config (SOCKS inbound → RU)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			b, err := xrayconf.RenderClient(cfg, clientUUID, socksPort)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			return nil
+		},
+	}
+	clientCmd.Flags().StringVar(&clientUUID, "uuid", "", "client UUID (required)")
+	clientCmd.Flags().IntVar(&socksPort, "socks-port", 1080, "local SOCKS inbound port")
+	_ = clientCmd.MarkFlagRequired("uuid")
+	cmd.AddCommand(clientCmd)
 	cmd.AddCommand(&cobra.Command{
 		Use:   "cloudflared",
 		Short: "Render the cloudflared ingress config (EU node)",

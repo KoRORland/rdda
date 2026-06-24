@@ -17,7 +17,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UNIT_SRC="$REPO_ROOT/deploy/systemd/rdda-xray.service"
 
 [ "$(id -u)" -eq 0 ] || { echo "must run as root"; exit 2; }
-for bin in xray rdda jq systemctl nginx openssl ss curl python3; do
+for bin in xray rdda jq systemctl nginx openssl ss curl; do
   command -v "$bin" >/dev/null || { echo "$bin not installed"; exit 2; }
 done
 
@@ -32,15 +32,15 @@ id rdda >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/n
 
 # EU node = source of truth, CF-fronted (nginx stands in for cloudflared).
 CF_HOST=tunnel.local
-rdda --dir /etc/rdda init \
+rdda init \
   --ru-host 127.0.0.1 --eu-host 127.0.0.1 \
   --client-sni www.cloudflare.com --tunnel-sni www.cloudflare.com \
   --cf-tunnel-host "$CF_HOST" --cf-sub-host sub.local \
   --cf-tunnel-id testtunnel --cf-credentials-file /etc/cloudflared/test.json >/dev/null
-rdda --dir /etc/rdda client add tester >/dev/null
+rdda client add tester >/dev/null
 
 # EU inbound is loopback + security:none under CF. Pin its port for the test.
-rdda --dir /etc/rdda render eu \
+rdda render eu \
   | jq ".inbounds[0].port=$EU_PORT" \
   > /etc/rdda/xray.json
 
@@ -59,11 +59,13 @@ server {
 }
 NGINX
 echo "127.0.0.1 $CF_HOST sub.local" >> /etc/hosts
+# Drop any distro default site so it can't collide with our :443 server block.
+rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 nginx -t && systemctl restart nginx
 
 # Render the RU node to dial the CF front (:443, allowInsecure for self-signed cert).
 mkdir -p /etc/rdda-ru
-rdda --dir /etc/rdda render ru \
+rdda render ru \
   | jq ".inbounds[0].port=$RU_PORT | .inbounds[0].listen=\"127.0.0.1\" \
         | .outbounds[0].settings.vnext[0].port=443 \
         | .outbounds[0].streamSettings.tlsSettings.allowInsecure=true" \
@@ -114,48 +116,12 @@ CLIENT_SOCKS_PORT=19080
 XRAY_CLIENT_CFG="$(mktemp /tmp/rdda-client-XXXXXX.json)"
 trap 'rm -f "$XRAY_CLIENT_CFG"' EXIT
 
-# Extract client reality fields from config.yaml via python3 (avoids fragile grep on nested YAML).
-python3 - /etc/rdda/config.yaml "$RU_PORT" "$CLIENT_SOCKS_PORT" "$XRAY_CLIENT_CFG" <<'PYEOF'
-import sys, yaml, json
-cfg_path, ru_port, socks_port, out_path = sys.argv[1:]
-with open(cfg_path) as f:
-    cfg = yaml.safe_load(f)
-cr = cfg["client_reality"]
-clients_path = cfg_path.replace("config.yaml", "clients")
-import os, glob
-client_files = glob.glob(os.path.join(clients_path, "*.json"))
-client_file = next((c for c in client_files if "tester" in os.path.basename(c)), client_files[0])
-with open(client_file) as f:
-    client = json.load(f)
-doc = {
-    "log": {"loglevel": "warning"},
-    "inbounds": [{
-        "listen": "127.0.0.1", "port": int(socks_port),
-        "protocol": "socks", "tag": "socks-in",
-        "settings": {"auth": "noauth", "udp": False}
-    }],
-    "outbounds": [{
-        "protocol": "vless", "tag": "proxy",
-        "settings": {"vnext": [{
-            "address": "127.0.0.1", "port": int(ru_port),
-            "users": [{"id": client["uuid"], "encryption": "none", "flow": ""}]
-        }]},
-        "streamSettings": {
-            "network": "xhttp",
-            "xhttpSettings": {"path": cfg["client_path"]},
-            "security": "reality",
-            "realitySettings": {
-                "serverName": cr["server_name"],
-                "publicKey": cr["public_key"],
-                "shortId": cr["short_ids"][0],
-                "fingerprint": "chrome"
-            }
-        }
-    }]
-}
-with open(out_path, "w") as f:
-    json.dump(doc, f, indent=2)
-PYEOF
+# Dogfood `render client`: RenderClient dials cfg.RUHost:cfg.RUPort (127.0.0.1:default);
+# the jq overrides the dialed port to the test's $RU_PORT (same surgery style as elsewhere).
+TESTER_UUID=$(jq -r '.uuid' /etc/rdda/clients/tester.json)
+rdda render client --uuid "$TESTER_UUID" --socks-port "$CLIENT_SOCKS_PORT" \
+  | jq ".outbounds[0].settings.vnext[0].port=$RU_PORT" \
+  > "$XRAY_CLIENT_CFG"
 
 xray run -c "$XRAY_CLIENT_CFG" &
 XRAY_CLIENT_PID=$!
@@ -172,17 +138,17 @@ echo "OK: two-hop tunnel works (client SOCKS → RU → nginx(:443) → EU → i
 
 # Pull-sync assertion: add a NEW client on EU after the RU config was rendered,
 # then pull and verify the new UUID lands in /etc/rdda-ru/xray.json.
-rdda --dir /etc/rdda client add latecomer >/dev/null
+rdda client add latecomer >/dev/null
 NEW_UUID=$(jq -r '.uuid' /etc/rdda/clients/latecomer.json)
 
 # Start the sub server on loopback (EU).
-rdda --dir /etc/rdda serve --addr 127.0.0.1:8080 &
+rdda serve --addr 127.0.0.1:8080 &
 SUB_PID=$!
 sleep 1
 
 PULL_TOKEN=$(grep '^pull_token:' /etc/rdda/config.yaml | awk '{print $2}')
 
-rdda --dir /etc/rdda-ru pull \
+rdda pull \
   --from "http://127.0.0.1:8080/ru/config" --token "$PULL_TOKEN" \
   --dest /etc/rdda-ru/xray.json --reload-cmd "true"
 
@@ -194,8 +160,8 @@ jq ".inbounds[0].port=$RU_PORT | .inbounds[0].listen=\"127.0.0.1\" \
 
 if ! jq -e --arg u "$NEW_UUID" '.inbounds[0].settings.clients[] | select(.id==$u)' /etc/rdda-ru/xray.json >/dev/null; then
   echo "FAIL: pulled RU config does not contain the new client" >&2
-  kill $SUB_PID 2>/dev/null || true
+  kill "$SUB_PID" 2>/dev/null || true
   exit 1
 fi
 echo "OK: pull-sync delivered the new client to RU"
-kill $SUB_PID 2>/dev/null || true
+kill "$SUB_PID" 2>/dev/null || true
