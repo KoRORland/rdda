@@ -58,7 +58,10 @@ install -m0644 /etc/ssl/rdda-ca.crt /usr/local/share/ca-certificates/rdda-ca.crt
 update-ca-certificates >/dev/null 2>&1
 cat >/etc/nginx/conf.d/cf.conf <<NGINX
 server {
-    listen 443 ssl;
+    # xray XHTTP dials over HTTP/2 (as it does to real Cloudflare); the edge
+    # must speak h2 or the client sees HTTP/1.1 bytes as oversized h2 frames.
+    # `listen ... http2` is the portable form (works on nginx 1.24 on the runner).
+    listen 443 ssl http2;
     server_name $CF_HOST sub.local;
     ssl_certificate     /etc/ssl/cf.crt;
     ssl_certificate_key /etc/ssl/cf.key;
