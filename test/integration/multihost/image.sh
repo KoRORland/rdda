@@ -22,12 +22,11 @@ install -m0755 /tmp/xray/xray "$BASE/usr/local/bin/xray"
 # RU/client configs use geoip routing (geoip:private, geoip:ru); xray needs the
 # data files next to the binary or it fails to build routing. They ship in the zip.
 install -m0644 /tmp/xray/geoip.dat /tmp/xray/geosite.dat "$BASE/usr/local/bin/"
-# chisel (reverse-tunnel stand-in for cloudflared). Asset names are versioned
-# (chisel_<ver>_linux_amd64.gz), so resolve the real download URL from the API.
-chisel_url="$(curl -fsSL https://api.github.com/repos/jpillora/chisel/releases/latest \
-  | jq -r '.assets[] | select(.name | test("linux_amd64\\.gz$")) | .browser_download_url')"
-[ -n "$chisel_url" ] || { echo "could not resolve chisel asset URL" >&2; exit 1; }
-curl -fsSL "$chisel_url" -o /tmp/chisel.gz
+# chisel (reverse-tunnel stand-in for cloudflared). Pin the version: the asset
+# name is versioned, and resolving via api.github.com hits the unauthenticated
+# rate limit (403) on shared CI runner IPs. Direct release-CDN download instead.
+CHISEL_VER=1.11.5
+curl -fsSL "https://github.com/jpillora/chisel/releases/download/v${CHISEL_VER}/chisel_${CHISEL_VER}_linux_amd64.gz" -o /tmp/chisel.gz
 gunzip -f /tmp/chisel.gz
 install -m0755 /tmp/chisel "$BASE/usr/local/bin/chisel"
 
