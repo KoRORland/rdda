@@ -364,11 +364,24 @@ install -D -m0600 "$CA_DIR/edge.key" "$root/etc/ssl/edge.key"
 log "nginx: TLS terminate :443 -> chisel-forwarded EU loopback"
 cat > "$root/etc/nginx/conf.d/edge.conf" <<'NGINX'
 server {
-    listen 443 ssl;
+    # h2 is REQUIRED: xray XHTTP dials packet-up over HTTP/2 (as it does to real
+    # Cloudflare); without it the client sees HTTP/1.1 bytes as oversized h2
+    # frames. The XHTTP data hop must also STREAM (buffering off) per
+    # XTLS/Xray-core#3463. Both were proven on the single-host transport gate.
+    listen 443 ssl http2;
     server_name tunnel.rdda.test sub.rdda.test;
     ssl_certificate     /etc/ssl/edge.crt;
     ssl_certificate_key /etc/ssl/edge.key;
-    location /     { proxy_pass http://127.0.0.1:8443; proxy_http_version 1.1; }
+    location / {
+        proxy_pass http://127.0.0.1:8443;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Connection "";
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+        client_max_body_size 0;
+    }
     location /sub/ { proxy_pass http://127.0.0.1:8080; }
     location /ru/  { proxy_pass http://127.0.0.1:8080; }
 }
