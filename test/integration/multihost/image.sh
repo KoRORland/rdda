@@ -19,6 +19,9 @@ log "build rdda and install xray + chisel into base"
 curl -fsSL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o /tmp/xray.zip
 ( cd /tmp && rm -rf xray && mkdir xray && cd xray && { jar xf /tmp/xray.zip 2>/dev/null || unzip -o /tmp/xray.zip; } )
 install -m0755 /tmp/xray/xray "$BASE/usr/local/bin/xray"
+# RU/client configs use geoip routing (geoip:private, geoip:ru); xray needs the
+# data files next to the binary or it fails to build routing. They ship in the zip.
+install -m0644 /tmp/xray/geoip.dat /tmp/xray/geosite.dat "$BASE/usr/local/bin/"
 # chisel (reverse-tunnel stand-in for cloudflared). Asset names are versioned
 # (chisel_<ver>_linux_amd64.gz), so resolve the real download URL from the API.
 chisel_url="$(curl -fsSL https://api.github.com/repos/jpillora/chisel/releases/latest \
