@@ -40,6 +40,11 @@ for h in eu edge ru client target; do
 done
 
 log "apply isolation (EU zero-inbound; target only from EU)"
+# Same-bridge (L2) IPv4 traffic only traverses the inet FORWARD hook when
+# br_netfilter is loaded and bridge-nf-call-iptables is on. Without this the
+# nft rules below never see container<->container traffic.
+modprobe br_netfilter 2>/dev/null || true
+sysctl -qw net.bridge.bridge-nf-call-iptables=1
 nft -f - <<'NFT'
 table inet rdda {
   chain forward {
@@ -53,5 +58,4 @@ table inet rdda {
   }
 }
 NFT
-sysctl -q net.bridge.bridge-nf-call-iptables=1 2>/dev/null || true
 log "network up"
