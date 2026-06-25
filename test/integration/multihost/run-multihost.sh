@@ -34,6 +34,8 @@ teardown() {
   [ "$PASSED" = 1 ] || diag
   log "teardown"
   for h in "${HOSTS[@]}"; do machinectl terminate "rdda-$h" 2>/dev/null || true; done
+  iptables -D FORWARD -i br-rdda -j ACCEPT 2>/dev/null || true
+  iptables -D FORWARD -o br-rdda -j ACCEPT 2>/dev/null || true
   ip link del br-rdda 2>/dev/null || true
   nft delete table inet rdda 2>/dev/null || true
 }

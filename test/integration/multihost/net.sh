@@ -12,6 +12,13 @@ ip link add br-rdda type bridge 2>/dev/null || true
 ip addr add 10.8.0.1/24 dev br-rdda 2>/dev/null || true
 ip link set br-rdda up
 
+# The CI runner has Docker, whose FORWARD chain has policy drop and only permits
+# docker0. Once br_netfilter routes our bridge traffic through FORWARD, Docker
+# drops it. Whitelist br-rdda in FORWARD; our inet rdda table still enforces the
+# target/EU isolation (a drop in any chain is final; an accept here is not).
+iptables -I FORWARD -i br-rdda -j ACCEPT 2>/dev/null || true
+iptables -I FORWARD -o br-rdda -j ACCEPT 2>/dev/null || true
+
 HOSTS_BLOCK=$'10.8.0.10 eu\n10.8.0.20 edge tunnel.rdda.test sub.rdda.test\n10.8.0.30 ru\n10.8.0.40 client\n10.8.0.50 target target.rdda.test'
 
 for h in eu edge ru client target; do
