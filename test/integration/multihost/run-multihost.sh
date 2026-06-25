@@ -29,6 +29,12 @@ diag() {
   systemd-run --machine=rdda-eu --wait --pipe --quiet journalctl -u cloudflared --no-pager 2>&1 | tail -20 | sed 's/^/[eu] /' || true
   log "--- ru -> edge reachability ---"
   systemd-run --machine=rdda-ru --wait --pipe --quiet curl -vk --max-time 8 https://sub.rdda.test/ru/config 2>&1 | tail -20 | sed 's/^/[ru] /' || true
+  for h in client ru eu; do
+    log "--- $h: xray journal ---"
+    systemd-run --machine="rdda-$h" --wait --pipe --quiet journalctl -u rdda-xray -u rdda-client --no-pager 2>&1 | tail -30 | sed "s/^/[$h] /" || true
+  done
+  log "--- client: verbose curl through the tunnel ---"
+  systemd-run --machine=rdda-client --wait --pipe --quiet curl -v --max-time 15 --socks5-hostname 127.0.0.1:1080 http://target.rdda.test/ 2>&1 | tail -25 | sed 's/^/[client] /' || true
 }
 teardown() {
   [ "$PASSED" = 1 ] || diag
