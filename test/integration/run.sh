@@ -53,7 +53,19 @@ server {
     server_name $CF_HOST sub.local;
     ssl_certificate     /etc/ssl/cf.crt;
     ssl_certificate_key /etc/ssl/cf.key;
-    location / { proxy_pass http://127.0.0.1:$EU_PORT; proxy_http_version 1.1; }
+    # XHTTP data hop: must STREAM both directions (xray splithttp uses a
+    # streaming POST upload + GET download). Default nginx buffering stalls it
+    # and the h2 client cannot retry a written body (XTLS/Xray-core#3463).
+    location / {
+        proxy_pass http://127.0.0.1:$EU_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header Connection "";
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+        client_max_body_size 0;
+    }
     location /sub/ { proxy_pass http://127.0.0.1:8080; }
     location /ru/  { proxy_pass http://127.0.0.1:8080; }
 }
