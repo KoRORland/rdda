@@ -5,11 +5,11 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=test/integration/multihost/lib.sh
 . "$HERE/lib.sh"
 
-declare -A IP=( [eu]=10.8.0.10 [edge]=10.8.0.20 [ru]=10.8.0.30 [client]=10.8.0.40 [target]=10.8.0.50 )
+declare -A IP=( [eu]=203.0.113.10 [edge]=203.0.113.20 [ru]=203.0.113.30 [client]=203.0.113.40 [target]=203.0.113.50 )
 
 log "create bridge"
 ip link add br-rdda type bridge 2>/dev/null || true
-ip addr add 10.8.0.1/24 dev br-rdda 2>/dev/null || true
+ip addr add 203.0.113.1/24 dev br-rdda 2>/dev/null || true
 ip link set br-rdda up
 
 # The CI runner has Docker, whose FORWARD chain has policy drop and only permits
@@ -19,7 +19,7 @@ ip link set br-rdda up
 iptables -I FORWARD -i br-rdda -j ACCEPT 2>/dev/null || true
 iptables -I FORWARD -o br-rdda -j ACCEPT 2>/dev/null || true
 
-HOSTS_BLOCK=$'10.8.0.10 eu\n10.8.0.20 edge tunnel.rdda.test sub.rdda.test\n10.8.0.30 ru\n10.8.0.40 client\n10.8.0.50 target target.rdda.test'
+HOSTS_BLOCK=$'203.0.113.10 eu\n203.0.113.20 edge tunnel.rdda.test sub.rdda.test\n203.0.113.30 ru\n203.0.113.40 client\n203.0.113.50 target target.rdda.test'
 
 for h in eu edge ru client target; do
   root="/var/lib/machines/rdda-$h"
@@ -29,8 +29,8 @@ for h in eu edge ru client target; do
 Name=host0
 [Network]
 Address=${IP[$h]}/24
-Gateway=10.8.0.1
-DNS=10.8.0.1
+Gateway=203.0.113.1
+DNS=203.0.113.1
 NET
   printf '%s\n' "$HOSTS_BLOCK" > "$root/etc/hosts"
   log "boot rdda-$h"
@@ -59,9 +59,9 @@ table inet rdda {
     # Established/related always ok (lets EU's outbound chisel + freedom return).
     ct state established,related accept
     # Target reachable ONLY from EU.
-    ip daddr 10.8.0.50 ip saddr != 10.8.0.10 drop
+    ip daddr 203.0.113.50 ip saddr != 203.0.113.10 drop
     # EU accepts NO new inbound (it only ever dials out).
-    ip daddr 10.8.0.10 ct state new drop
+    ip daddr 203.0.113.10 ct state new drop
   }
 }
 NFT
