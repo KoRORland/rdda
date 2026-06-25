@@ -22,13 +22,13 @@ teardown() {
 }
 trap teardown EXIT
 
-log "=== build image ==="; "$HERE/image.sh" "$REPO_ROOT"
-log "=== bring up network ==="; "$HERE/net.sh"
+log "=== build image ==="; bash "$HERE/image.sh" "$REPO_ROOT"
+log "=== bring up network ==="; bash "$HERE/net.sh"
 log "=== provision ==="
-"$HERE/provision-target.sh"
-"$HERE/provision-edge.sh"
-"$HERE/provision-eu.sh"
-"$HERE/provision-ru.sh"
-"$HERE/provision-client.sh"
-log "=== assert ==="; "$HERE/assert.sh"
+bash "$HERE/provision-target.sh"
+bash "$HERE/provision-edge.sh"
+bash "$HERE/provision-eu.sh"
+bash "$HERE/provision-ru.sh"
+bash "$HERE/provision-client.sh"
+log "=== assert ==="; bash "$HERE/assert.sh"
 log "=== PASS ==="
