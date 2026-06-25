@@ -14,7 +14,24 @@ for bin in systemd-nspawn machinectl debootstrap nft systemd-run go; do
   command -v "$bin" >/dev/null || die "$bin not installed"
 done
 
+PASSED=0
+diag() {
+  log "===== DIAG (harness did not pass) ====="
+  nft list ruleset 2>&1 | sed 's/^/[nft] /' || true
+  for h in edge eu ru; do
+    log "--- $h: listeners + addrs ---"
+    systemd-run --machine="rdda-$h" --wait --pipe --quiet ss -ltnp 2>&1 | sed "s/^/[$h] /" || true
+    systemd-run --machine="rdda-$h" --wait --pipe --quiet ip -4 addr show host0 2>&1 | sed "s/^/[$h] /" || true
+  done
+  log "--- edge: nginx + chisel-server status ---"
+  systemd-run --machine=rdda-edge --wait --pipe --quiet systemctl status nginx rdda-edge-chisel --no-pager -l 2>&1 | tail -25 | sed 's/^/[edge] /' || true
+  log "--- eu: cloudflared(chisel client) journal ---"
+  systemd-run --machine=rdda-eu --wait --pipe --quiet journalctl -u cloudflared --no-pager 2>&1 | tail -20 | sed 's/^/[eu] /' || true
+  log "--- ru -> edge reachability ---"
+  systemd-run --machine=rdda-ru --wait --pipe --quiet curl -vk --max-time 8 https://sub.rdda.test/ru/config 2>&1 | tail -20 | sed 's/^/[ru] /' || true
+}
 teardown() {
+  [ "$PASSED" = 1 ] || diag
   log "teardown"
   for h in "${HOSTS[@]}"; do machinectl terminate "rdda-$h" 2>/dev/null || true; done
   ip link del br-rdda 2>/dev/null || true
@@ -31,4 +48,5 @@ bash "$HERE/provision-eu.sh"
 bash "$HERE/provision-ru.sh"
 bash "$HERE/provision-client.sh"
 log "=== assert ==="; bash "$HERE/assert.sh"
+PASSED=1
 log "=== PASS ==="
