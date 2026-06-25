@@ -28,6 +28,7 @@ echo 'rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-xray' 
 chmod 440 /etc/sudoers.d/rdda-reload
 # initial pull (no --dir, no --dest: defaults to /etc/rdda/xray.json)
 rdda pull --from https://sub.rdda.test/ru/config --token ${TOKEN} --reload-cmd true
+sed -i 's#"loglevel": "warning"#"loglevel": "debug"#' /etc/rdda/xray.json
 chown -R rdda:rdda /etc/rdda
 systemctl daemon-reload
 systemctl enable --now rdda-xray rdda-pull.timer

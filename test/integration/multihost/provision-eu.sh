@@ -37,7 +37,7 @@ UNIT
 # Pin EU xray + sub to the loopback ports the edge forwards (8443/8080).
 nsrun eu bash -eus <<'INEU'
 sed -i 's#"port": 443#"port": 8443#' /etc/rdda/xray.json
-sed -i 's#--addr 127.0.0.1:8080#--addr 127.0.0.1:8080#' /etc/systemd/system/rdda-sub.service
+sed -i 's#"loglevel": "warning"#"loglevel": "debug"#' /etc/rdda/xray.json
 systemctl daemon-reload
 systemctl enable --now rdda-xray rdda-sub cloudflared
 INEU
