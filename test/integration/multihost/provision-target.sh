@@ -12,5 +12,6 @@ server { listen 80; root /srv/www; }
 NGINX
 rm -f "$root/etc/nginx/sites-enabled/default"
 nsrun target systemctl enable --now nginx
+nsrun target systemctl restart nginx   # load our target.conf, not the default site
 wait_active target nginx
 log "target provisioned (serves RDDA_OK on :80)"

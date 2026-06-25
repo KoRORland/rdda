@@ -56,6 +56,7 @@ WantedBy=multi-user.target
 UNIT
 
 nsrun edge systemctl enable --now nginx rdda-edge-chisel
+nsrun edge systemctl restart nginx   # ensure our :443 config is the loaded one
 wait_active edge nginx
 wait_active edge rdda-edge-chisel
 log "edge provisioned"

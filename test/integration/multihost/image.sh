@@ -38,6 +38,10 @@ log "enable networkd + ssh-free boot; create rdda user"
 systemd-nspawn -D "$BASE" --pipe /bin/bash -eus <<'INROOT'
 systemctl enable systemd-networkd
 update-ca-certificates
+# Debian auto-enables nginx at install; disable it so it does NOT boot with the
+# default :80 site. Provisioners that need nginx start it fresh with their own
+# config (otherwise `enable --now` is a no-op on the already-running default).
+systemctl disable nginx || true
 useradd --system --no-create-home --shell /usr/sbin/nologin rdda || true
 useradd --system --no-create-home --shell /usr/sbin/nologin cloudflared || true
 INROOT
