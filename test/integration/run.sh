@@ -60,7 +60,7 @@ cat >/etc/nginx/conf.d/cf.conf <<NGINX
 server {
     # xray XHTTP dials over HTTP/2 (as it does to real Cloudflare); the edge
     # must speak h2 or the client sees HTTP/1.1 bytes as oversized h2 frames.
-    # `listen ... http2` is the portable form (works on nginx 1.24 on the runner).
+    # The listen-line http2 form is portable (works on nginx 1.24 on the runner).
     listen 443 ssl http2;
     server_name $CF_HOST sub.local;
     ssl_certificate     /etc/ssl/cf.crt;

@@ -11,16 +11,22 @@ nsrun() {
   systemd-run --machine="rdda-${host}" --wait --pipe --quiet "$@"
 }
 
-# Poll until <unit> is active inside <host>, or fail after ~20s.
+# Poll until <unit> is active inside <host>, or fail after ~20s. Also rejects a
+# crash-looping unit: a service with Restart=on-failure reads "active" transiently
+# between restarts, so require it to have NOT restarted (NRestarts=0).
 wait_active() {
-  local host="$1" unit="$2" i state
-  for i in $(seq 1 40); do
+  local host="$1" unit="$2" state restarts
+  for _ in $(seq 1 40); do
     state="$(nsrun "$host" systemctl is-active "$unit" 2>/dev/null || true)"
-    [ "$state" = active ] && { log "$host:$unit active"; return 0; }
+    if [ "$state" = active ]; then
+      restarts="$(nsrun "$host" systemctl show -p NRestarts --value "$unit" 2>/dev/null || echo 0)"
+      [ "${restarts:-0}" = 0 ] && { log "$host:$unit active"; return 0; }
+      break
+    fi
     [ "$state" = failed ] && break
     sleep 0.5
   done
   nsrun "$host" systemctl status "$unit" --no-pager -l 2>&1 | head -30 || true
   nsrun "$host" journalctl -u "$unit" --no-pager 2>&1 | tail -40 || true
-  die "$host:$unit did not reach active (state=$state)"
+  die "$host:$unit not stably active (state=$state, restarts=${restarts:-?})"
 }
