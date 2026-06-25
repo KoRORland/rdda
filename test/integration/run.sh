@@ -44,9 +44,18 @@ rdda render eu \
   | jq ".inbounds[0].port=$EU_PORT | .log.loglevel=\"debug\"" \
   > /etc/rdda/xray.json
 
-# --- cloudflared stand-in: TLS terminate on :443 -> loopback EU origin ---
+# --- cloudflared stand-in: a test CA + CA-signed edge cert, with the CA trusted
+# system-wide. This mirrors production (RU trusts the real CF cert via the system
+# store) and is REQUIRED because current xray removed `allowInsecure`. ---
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
-  -keyout /etc/ssl/cf.key -out /etc/ssl/cf.crt -subj "/CN=$CF_HOST" >/dev/null 2>&1
+  -keyout /etc/ssl/rdda-ca.key -out /etc/ssl/rdda-ca.crt -subj "/CN=RDDA Test CA" >/dev/null 2>&1
+openssl req -newkey rsa:2048 -nodes -keyout /etc/ssl/cf.key -out /etc/ssl/cf.csr \
+  -subj "/CN=$CF_HOST" >/dev/null 2>&1
+openssl x509 -req -in /etc/ssl/cf.csr -CA /etc/ssl/rdda-ca.crt -CAkey /etc/ssl/rdda-ca.key \
+  -CAcreateserial -days 1 -out /etc/ssl/cf.crt \
+  -extfile <(printf 'subjectAltName=DNS:%s,DNS:sub.local' "$CF_HOST") >/dev/null 2>&1
+install -m0644 /etc/ssl/rdda-ca.crt /usr/local/share/ca-certificates/rdda-ca.crt
+update-ca-certificates >/dev/null 2>&1
 cat >/etc/nginx/conf.d/cf.conf <<NGINX
 server {
     listen 443 ssl;
@@ -80,7 +89,6 @@ mkdir -p /etc/rdda-ru
 rdda render ru \
   | jq ".inbounds[0].port=$RU_PORT | .inbounds[0].listen=\"127.0.0.1\" \
         | .outbounds[0].settings.vnext[0].port=443 \
-        | .outbounds[0].streamSettings.tlsSettings.allowInsecure=true \
         | .log.loglevel=\"debug\"" \
   > /etc/rdda-ru/xray.json
 
