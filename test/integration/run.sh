@@ -41,7 +41,7 @@ rdda client add tester >/dev/null
 
 # EU inbound is loopback + security:none under CF. Pin its port for the test.
 rdda render eu \
-  | jq ".inbounds[0].port=$EU_PORT" \
+  | jq ".inbounds[0].port=$EU_PORT | .log.loglevel=\"debug\"" \
   > /etc/rdda/xray.json
 
 # --- cloudflared stand-in: TLS terminate on :443 -> loopback EU origin ---
@@ -80,7 +80,8 @@ mkdir -p /etc/rdda-ru
 rdda render ru \
   | jq ".inbounds[0].port=$RU_PORT | .inbounds[0].listen=\"127.0.0.1\" \
         | .outbounds[0].settings.vnext[0].port=443 \
-        | .outbounds[0].streamSettings.tlsSettings.allowInsecure=true" \
+        | .outbounds[0].streamSettings.tlsSettings.allowInsecure=true \
+        | .log.loglevel=\"debug\"" \
   > /etc/rdda-ru/xray.json
 
 # Real deploy ownership/permissions (this is what the DynamicUser bug trips on).
@@ -135,13 +136,19 @@ rdda render client --uuid "$TESTER_UUID" --socks-port "$CLIENT_SOCKS_PORT" \
   | jq ".outbounds[0].settings.vnext[0].port=$RU_PORT" \
   > "$XRAY_CLIENT_CFG"
 
-xray run -c "$XRAY_CLIENT_CFG" &
+xray run -c "$XRAY_CLIENT_CFG" >/tmp/rdda-client.log 2>&1 &
 XRAY_CLIENT_PID=$!
 sleep 2
 
 # Probe: send a request through the tunnel.
 if ! curl --socks5 "127.0.0.1:$CLIENT_SOCKS_PORT" --max-time 10 -fsS https://www.example.com >/dev/null 2>&1; then
   echo "FAIL: two-hop tunnel probe failed (client→RU→nginx→EU→internet)" >&2
+  echo "===== DIAG: verbose probe =====" >&2
+  curl --socks5 "127.0.0.1:$CLIENT_SOCKS_PORT" --max-time 10 -v https://www.example.com 2>&1 | head -20 >&2 || true
+  echo "===== DIAG: client xray log =====" >&2; tail -30 /tmp/rdda-client.log >&2 || true
+  echo "===== DIAG: RU xray journal =====" >&2; journalctl -u rdda-xray-ru --no-pager 2>&1 | tail -40 >&2 || true
+  echo "===== DIAG: EU xray journal =====" >&2; journalctl -u rdda-xray --no-pager 2>&1 | tail -40 >&2 || true
+  echo "===== DIAG: nginx error log =====" >&2; tail -30 /var/log/nginx/error.log >&2 2>/dev/null || true
   kill "$XRAY_CLIENT_PID" 2>/dev/null || true
   exit 1
 fi
