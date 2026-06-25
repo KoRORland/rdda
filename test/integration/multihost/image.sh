@@ -10,7 +10,7 @@ CA_DIR=/run/rdda-ca
 
 log "debootstrap base rootfs"
 rm -rf "$BASE"; mkdir -p "$BASE"
-debootstrap --include=systemd,systemd-sysv,dbus,nginx,curl,jq,ca-certificates,openssl,iproute2 \
+debootstrap --include=systemd,systemd-sysv,dbus,nginx,curl,jq,ca-certificates,openssl,iproute2,sudo \
   stable "$BASE" http://deb.debian.org/debian
 
 log "build rdda and install xray + chisel into base"

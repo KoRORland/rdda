@@ -69,7 +69,7 @@ The pull service runs as the `rdda` user but needs to call
 sudoers drop-in:
 
     sudo tee /etc/sudoers.d/rdda-reload > /dev/null <<'EOF'
-    rdda ALL=(root) NOPASSWD: /bin/systemctl reload-or-restart rdda-xray
+    rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-xray
     EOF
     sudo chmod 440 /etc/sudoers.d/rdda-reload
     sudo visudo -c   # validate syntax
