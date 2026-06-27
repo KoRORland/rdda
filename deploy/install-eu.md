@@ -40,6 +40,10 @@ This prints a `vless://...` link. Send it to the person over a private channel
 there is no public subscription endpoint — delivery is out-of-band on purpose
 (nothing client-facing is exposed on the EU node).
 
+> **Mux:** After importing the link in Hiddify, enable **Mux/multiplex** in the
+> proxy settings — the vless link cannot carry mux parameters, it must be
+> turned on manually in the client.
+
 > The subscription server (`rdda-sub`) is installed but dormant in v0.1; it
 > comes online behind Cloudflare in v0.2.
 

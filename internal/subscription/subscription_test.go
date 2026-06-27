@@ -30,8 +30,9 @@ func TestClientURI(t *testing.T) {
 	}
 	q := u.Query()
 	checks := map[string]string{
-		"type": "xhttp", "security": "reality", "encryption": "none",
-		"pbk": "cpub", "sni": "www.microsoft.com", "sid": "0011", "fp": "chrome", "path": "/cl",
+		"type": "ws", "security": "reality", "encryption": "none",
+		"pbk": "cpub", "sni": "www.microsoft.com", "sid": "0011", "fp": "firefox", "path": "/cl",
+		"host": "ru.example.net",
 	}
 	for k, want := range checks {
 		if q.Get(k) != want {
@@ -50,8 +51,8 @@ func TestBuildBase64(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(string(dec), "vless://") {
-		t.Fatalf("decoded body not a vless URI: %s", dec)
+	if !strings.Contains(string(dec), "vless://") {
+		t.Fatalf("decoded body does not contain a vless URI: %s", dec)
 	}
 }
 
@@ -136,17 +137,17 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 	if !ok {
 		t.Fatal("shortIds is not []any")
 	}
-	xhttpAny, ok := stream["xhttpSettings"]
+	wsAny, ok := stream["wsSettings"]
 	if !ok {
-		t.Fatal("streamSettings missing 'xhttpSettings'")
+		t.Fatal("streamSettings missing 'wsSettings'")
 	}
-	xhttp, ok := xhttpAny.(map[string]any)
+	ws, ok := wsAny.(map[string]any)
 	if !ok {
-		t.Fatal("xhttpSettings is not map[string]any")
+		t.Fatal("wsSettings is not map[string]any")
 	}
-	ruPath, ok := xhttp["path"].(string)
+	ruPath, ok := ws["path"].(string)
 	if !ok {
-		t.Fatal("xhttpSettings.path is not a string")
+		t.Fatal("wsSettings.path is not a string")
 	}
 
 	// Parse the subscription URI.
@@ -178,7 +179,7 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 
 	// Assert path matches.
 	if uriPath != ruPath {
-		t.Errorf("URI path=%q does not match RU inbound xhttpSettings.path=%q", uriPath, ruPath)
+		t.Errorf("URI path=%q does not match RU inbound wsSettings.path=%q", uriPath, ruPath)
 	}
 
 	// Assert sni is in the RU inbound's serverNames list.

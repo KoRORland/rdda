@@ -12,7 +12,8 @@ import (
 // ClientURI returns a VLESS share link pointing at the RU entry node.
 func ClientURI(cfg state.Config, c state.Client) string {
 	q := url.Values{}
-	q.Set("type", "xhttp")
+	q.Set("type", "ws")
+	q.Set("host", cfg.RUHost)
 	q.Set("path", cfg.ClientPath)
 	q.Set("security", "reality")
 	q.Set("encryption", "none")
@@ -23,7 +24,7 @@ func ClientURI(cfg state.Config, c state.Client) string {
 		sid = cfg.ClientReality.ShortIDs[0]
 	}
 	q.Set("sid", sid)
-	q.Set("fp", "chrome")
+	q.Set("fp", cfg.FP())
 	u := url.URL{
 		Scheme:   "vless",
 		User:     url.User(c.UUID),
@@ -34,7 +35,11 @@ func ClientURI(cfg state.Config, c state.Client) string {
 	return u.String()
 }
 
-// Build returns the base64-encoded subscription body (one URI) for a client.
+// Build returns the base64-encoded subscription body for a client.
+// The decoded body is a v2ray-style subscription: one URI per line, with a
+// leading comment reminding the operator to enable Mux/multiplex in Hiddify
+// (the bare vless link cannot carry mux settings).
 func Build(cfg state.Config, c state.Client) string {
-	return base64.StdEncoding.EncodeToString([]byte(ClientURI(cfg, c)))
+	body := "# enable Mux/multiplex in Hiddify settings\n" + ClientURI(cfg, c)
+	return base64.StdEncoding.EncodeToString([]byte(body))
 }
