@@ -27,6 +27,14 @@ type Cloudflare struct {
 	CredentialsFile string `yaml:"credentials_file"`
 }
 
+// Desync configures the RU-node nfqws2 (zapret2) egress DPI-desync. It is
+// fail-open: a desync failure must not break the tunnel path.
+type Desync struct {
+	Enabled bool   `yaml:"enabled"`
+	Profile string `yaml:"profile"`
+	Ports   []int  `yaml:"ports"`
+}
+
 // Config is the full RDDA deployment description (the EU source of truth).
 type Config struct {
 	RUHost           string     `yaml:"ru_host"`
@@ -43,6 +51,7 @@ type Config struct {
 	Cloudflare       Cloudflare `yaml:"cloudflare"`
 	PullToken        string     `yaml:"pull_token"`
 	Fingerprint      string     `yaml:"fingerprint"`
+	Desync           Desync     `yaml:"desync"`
 }
 
 // Store is a directory-backed RDDA state store.

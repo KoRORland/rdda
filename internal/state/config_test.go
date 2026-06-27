@@ -68,3 +68,22 @@ func TestConfigFingerprintDefault(t *testing.T) {
 		t.Fatalf("FP() = %q, want safari", got.FP())
 	}
 }
+
+func TestDesyncRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := Config{RUHost: "ru", Desync: Desync{Enabled: true, Profile: "fake,split2", Ports: []int{443}}}
+	if err := s.SaveConfig(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Desync.Enabled || got.Desync.Profile != "fake,split2" || got.Desync.Ports[0] != 443 {
+		t.Fatalf("desync round-trip: %+v", got.Desync)
+	}
+}
