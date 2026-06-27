@@ -20,7 +20,7 @@ for the original requirements seed.
 ## 2. Topology
 
 ```
-[Client + Hiddify] ──VLESS / REALITY+XHTTP+XMUX──▶ [RU node] ══ CDN-fronted tunnel ══▶ [EU node] ──▶ Internet
+[Client + Hiddify] ──VLESS / REALITY+WS+mux──▶ [RU node] ══ CDN-fronted WS tunnel ══▶ [EU node] ──▶ Internet
                                                        │ owns ALL routing
                                                        ▼
                                           RU-zone + intl-allowlist exit locally
@@ -33,11 +33,23 @@ for the original requirements seed.
 The "Russian Doll": the client tunnels to the **RU node**, which tunnels again to the
 **EU node**. Two hops RKN can observe:
 
-1. **Client → RU node (domestic).** RU node must look like a normal HTTPS site to active
-   probing (REALITY borrows a famous site's TLS identity + a real decoy web server).
-2. **RU node → EU node (cross-border).** The hop that matters most for the passive DPI
-   scheme. CDN-fronting (Cloudflare) removes the "suspicious subnet" signal; XMUX removes
-   the "connection frequency" signal; REALITY/real-stack fingerprint removes the JA4 signal.
+1. **Client → RU node (domestic).** Carries **VLESS + WebSocket + mux + REALITY** so a real
+   **Hiddify (sing-box)** client can speak it. REALITY borrows a famous site's TLS identity
+   (+ a real decoy web server) for active-probing camouflage and the JA4/fingerprint signal;
+   **mux** smooths the connection-frequency signal. (Caveat: the June-2026 scheme keys the
+   *subnet* signal on the **first hop's** destination, so the RU node's own subnet still
+   matters here — prefer a clean/residential RU subnet; see §6.)
+2. **RU node → EU node (cross-border).** Carries **VLESS + WebSocket + mux** behind
+   **Cloudflare** (REALITY can't sit behind a CDN, so this hop is WS over CF-terminated TLS).
+   CDN-fronting removes the "suspicious subnet" signal on the cross-border hop; **mux** removes
+   the "connection frequency" signal.
+
+> **Why WebSocket, not XHTTP (changed 2026-06-27):** XHTTP is xray-only — **sing-box (Hiddify's
+> core) does not support it**, so an XHTTP server is unreachable by real Hiddify clients. The
+> June-2026 dpi-tls analysis names the Signal-1 fix as "VLESS over **XHTTP / WebSocket** behind
+> Cloudflare" (WS is an equal CDN transport) and Signal-3 as **mux** (XMUX is just xray's mux).
+> So **WS + mux + CDN** satisfies the same three-signal model while keeping the granny-grade
+> Hiddify client. XHTTP+xray-client remains a swappable future profile (§6).
 
 **All client traffic goes to the RU node.** Clients do **no** routing — they never learn the
 topology and cannot misconfigure or leak it. The RU node owns routing decisions:
@@ -56,7 +68,7 @@ the EU node, which is the internet exit.
 ### RU node — entry + router (native systemd services)
 | Unit | Role |
 |---|---|
-| `rdda-xray.service` | xray-core: terminates client VLESS (REALITY + XHTTP + XMUX); originates the tunnel to EU |
+| `rdda-xray.service` | xray-core: terminates client VLESS (REALITY + WebSocket + mux); originates the WS tunnel to EU |
 | `rdda-decoy.service` | nginx serving a plausible site — REALITY `dest` + active-probing camouflage |
 | `rdda-router.service` | applies nft/ipset rules so RU-zone + intl-allowlist egress locally, default → EU tunnel |
 | `rdda-pull.timer` | periodically pulls desired config (incl. new clients) from EU over Cloudflare |
@@ -123,12 +135,17 @@ The transport/obfuscation engine is selected by a **profile** in `config.yaml` p
 config template. Censorship is a never-ending chase, so the engine must be replaceable
 without rearchitecting.
 
-- **Default:** `VLESS XHTTP + XMUX + REALITY behind Cloudflare` — defeats all three signals
-  of the June-2026 passive DPI scheme (subnet via CDN, frequency via XMUX, fingerprint via
-  REALITY/real-stack).
-- **Future profiles (drop-in):** Vision+REALITY direct (faster, for un-flagged subnets),
-  AmneziaWG, NaiveProxy, and `zapret2`/`nfqws2` (Lua-based desync) as an egress-handshake
-  helper. (zapret v1/`nfqws` is EOL; zapret2 is the maintained successor.)
+- **Default:** `VLESS + WebSocket + mux (+ REALITY client-side / CDN-TLS cross-border)` —
+  defeats all three signals of the June-2026 passive DPI scheme: **subnet** via CDN-fronting
+  (the structural fix; REALITY never helped here), **frequency** via mux, **fingerprint** via a
+  non-Chrome uTLS profile + REALITY. Chosen over XHTTP because **sing-box/Hiddify cannot speak
+  XHTTP**; the dpi-tls-june-2026 analysis lists WebSocket-behind-Cloudflare as an equal Signal-1
+  fix and mux (not XMUX specifically) as the Signal-3 fix. Pick a **non-Chrome** uTLS
+  fingerprint (Firefox/Safari/Edge/iOS/OkHttp) — mimicking Chrome is now itself a flag.
+- **Future profiles (drop-in):** `XHTTP + XMUX + REALITY` with an **xray-core client**
+  (strongest/newest, but not Hiddify-compatible), Vision+REALITY direct (faster, for un-flagged
+  subnets), AmneziaWG, NaiveProxy, and `zapret2`/`nfqws2` (Lua-based desync) as an
+  egress-handshake helper. (zapret v1/`nfqws` is EOL; zapret2 is the maintained successor.)
 
 Switching engines = change one profile value + its template; no other code changes.
 
