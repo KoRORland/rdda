@@ -51,8 +51,18 @@ func TestBuildBase64(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(dec), "vless://") {
-		t.Fatalf("decoded body does not contain a vless URI: %s", dec)
+	lines := strings.Split(string(dec), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("decoded body has %d lines, want >=2: %q", len(lines), dec)
+	}
+	if !strings.HasPrefix(lines[0], "# ") {
+		t.Errorf("line[0]=%q want a comment line starting with %q", lines[0], "# ")
+	}
+	if !strings.Contains(lines[0], "Mux") {
+		t.Errorf("line[0]=%q want it to mention %q (mux note)", lines[0], "Mux")
+	}
+	if !strings.HasPrefix(lines[1], "vless://") {
+		t.Errorf("line[1]=%q want prefix %q", lines[1], "vless://")
 	}
 }
 
