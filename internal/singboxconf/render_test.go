@@ -62,7 +62,13 @@ func ruCfg(cf bool) state.Config {
 	c.EUHost = "eu.example.net"
 	c.EUPort = 9443
 	// OVERRIDE 2: replace placeholder "TPUB" with real Curve25519 public key.
-	c.TunnelReality = state.Reality{ServerName: "www.apple.com", PublicKey: "-YPePsJFV9QtMmrdg-0WRlzz4UNS6GQZGJkIACRIiwQ", ShortIDs: []string{"ee11"}}
+	c.TunnelReality = state.Reality{
+		Target:     "www.apple.com:443",
+		ServerName: "www.apple.com",
+		PublicKey:  "-YPePsJFV9QtMmrdg-0WRlzz4UNS6GQZGJkIACRIiwQ",
+		PrivateKey: "cIDFmqtsquCJlcsNsSyEodQum-cf2mit658JrnBHIkU",
+		ShortIDs:   []string{"ee11"},
+	}
 	c.IntlAllowDomains = []string{"example.org"}
 	if cf {
 		c.Cloudflare = state.Cloudflare{TunnelHostname: "tunnel.rdda.test"}
@@ -107,6 +113,36 @@ func TestRenderRU_NonCF(t *testing.T) {
 	// OVERRIDE 2: assert against real key, not placeholder "TPUB".
 	if proxy["tls"].(map[string]any)["reality"].(map[string]any)["public_key"] != "-YPePsJFV9QtMmrdg-0WRlzz4UNS6GQZGJkIACRIiwQ" {
 		t.Fatalf("non-CF outbound must use tunnel REALITY: %v", proxy["tls"])
+	}
+	mustCheck(t, b)
+}
+
+func TestRenderEU_CF(t *testing.T) {
+	b, _ := RenderEU(ruCfg(true))
+	var doc map[string]any
+	_ = json.Unmarshal(b, &doc)
+	in := doc["inbounds"].([]any)[0].(map[string]any)
+	tr := in["transport"].(map[string]any)
+	// OVERRIDE 1: CF transport is ws (not httpupgrade).
+	if tr["type"] != "ws" || tr["path"] != "/tnl" {
+		t.Fatalf("EU inbound transport must be ws: %v", tr)
+	}
+	if _, hasTLS := in["tls"]; hasTLS {
+		t.Fatal("EU inbound under CF must NOT enable TLS (Cloudflare terminates it)")
+	}
+	if in["multiplex"].(map[string]any)["enabled"] != true {
+		t.Fatalf("EU inbound must accept multiplex: %v", in)
+	}
+	mustCheck(t, b)
+}
+
+func TestRenderEU_NonCF(t *testing.T) {
+	b, _ := RenderEU(ruCfg(false))
+	var doc map[string]any
+	_ = json.Unmarshal(b, &doc)
+	in := doc["inbounds"].([]any)[0].(map[string]any)
+	if in["tls"].(map[string]any)["reality"].(map[string]any)["enabled"] != true {
+		t.Fatalf("non-CF EU inbound must be REALITY: %v", in)
 	}
 	mustCheck(t, b)
 }

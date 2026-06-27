@@ -145,3 +145,43 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 	}
 	return json.MarshalIndent(doc, "", "  ")
 }
+
+// RenderEU builds the EU node config: terminate the RU tunnel, exit to internet.
+// Under Cloudflare the public TLS is terminated by CF, so the inbound runs plain
+// WebSocket (no TLS). Without CF it terminates REALITY directly.
+func RenderEU(cfg state.Config) ([]byte, error) {
+	var inbound obj
+	if cfg.CFEnabled() {
+		inbound = obj{
+			"type": "vless", "tag": "in",
+			"listen": "127.0.0.1", "listen_port": cfg.EUPort,
+			"users":     []obj{{"uuid": cfg.TunnelUUID}},
+			"transport": obj{"type": "ws", "path": cfg.TunnelPath},
+			"multiplex": obj{"enabled": true},
+		}
+	} else {
+		hsHost, hsPort := splitHostPort(cfg.TunnelReality.Target, 443)
+		inbound = obj{
+			"type": "vless", "tag": "in",
+			"listen": "0.0.0.0", "listen_port": cfg.EUPort,
+			"users": []obj{{"uuid": cfg.TunnelUUID}},
+			"tls": obj{
+				"enabled":     true,
+				"server_name": cfg.TunnelReality.ServerName,
+				"reality": obj{
+					"enabled":     true,
+					"handshake":   obj{"server": hsHost, "server_port": hsPort},
+					"private_key": cfg.TunnelReality.PrivateKey,
+					"short_id":    cfg.TunnelReality.ShortIDs,
+				},
+			},
+			"multiplex": obj{"enabled": true},
+		}
+	}
+	doc := obj{
+		"log":       obj{"level": "warn"},
+		"inbounds":  []obj{inbound},
+		"outbounds": []obj{{"type": "direct", "tag": "direct"}},
+	}
+	return json.MarshalIndent(doc, "", "  ")
+}
