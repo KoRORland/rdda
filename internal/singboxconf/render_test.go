@@ -51,6 +51,66 @@ func TestRenderClient(t *testing.T) {
 	mustCheck(t, b)
 }
 
+func ruCfg(cf bool) state.Config {
+	c := clientCfg()
+	// OVERRIDE 2: clientCfg() does not set ClientReality.PrivateKey; RenderRU uses it
+	// for the REALITY inbound. sing-box check validates X25519 key format.
+	c.ClientReality.PrivateKey = "4CU9TV7yDehWUFosUk7WsmBIkJ3OoKhCISr8-t9PJ24"
+	c.RUPort = 8443
+	c.TunnelUUID = "tunnel-uuid"
+	c.TunnelPath = "/tnl"
+	c.EUHost = "eu.example.net"
+	c.EUPort = 9443
+	// OVERRIDE 2: replace placeholder "TPUB" with real Curve25519 public key.
+	c.TunnelReality = state.Reality{ServerName: "www.apple.com", PublicKey: "-YPePsJFV9QtMmrdg-0WRlzz4UNS6GQZGJkIACRIiwQ", ShortIDs: []string{"ee11"}}
+	c.IntlAllowDomains = []string{"example.org"}
+	if cf {
+		c.Cloudflare = state.Cloudflare{TunnelHostname: "tunnel.rdda.test"}
+	}
+	return c
+}
+
+func TestRenderRU_CF(t *testing.T) {
+	b, err := RenderRU(ruCfg(true), []state.Client{{UUID: "uuid-1", Name: "a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	_ = json.Unmarshal(b, &doc)
+	in := doc["inbounds"].([]any)[0].(map[string]any)
+	if in["type"] != "vless" || in["tls"].(map[string]any)["reality"].(map[string]any)["enabled"] != true {
+		t.Fatalf("RU inbound must be VLESS+REALITY: %v", in)
+	}
+	if in["multiplex"].(map[string]any)["enabled"] != true {
+		t.Fatalf("RU inbound must accept multiplex: %v", in)
+	}
+	proxy := doc["outbounds"].([]any)[0].(map[string]any)
+	tr := proxy["transport"].(map[string]any)
+	// OVERRIDE 1: CF transport is ws (not httpupgrade — CF rewrites HTTPUpgrade to WS).
+	if tr["type"] != "ws" || tr["path"] != "/tnl" {
+		t.Fatalf("CF outbound must be ws: %v", tr)
+	}
+	if proxy["tls"].(map[string]any)["server_name"] != "tunnel.rdda.test" {
+		t.Fatalf("CF outbound TLS SNI: %v", proxy["tls"])
+	}
+	if _, hasReality := proxy["tls"].(map[string]any)["reality"]; hasReality {
+		t.Fatal("CF outbound must NOT carry reality (CF terminates TLS)")
+	}
+	mustCheck(t, b)
+}
+
+func TestRenderRU_NonCF(t *testing.T) {
+	b, _ := RenderRU(ruCfg(false), []state.Client{{UUID: "uuid-1"}})
+	var doc map[string]any
+	_ = json.Unmarshal(b, &doc)
+	proxy := doc["outbounds"].([]any)[0].(map[string]any)
+	// OVERRIDE 2: assert against real key, not placeholder "TPUB".
+	if proxy["tls"].(map[string]any)["reality"].(map[string]any)["public_key"] != "-YPePsJFV9QtMmrdg-0WRlzz4UNS6GQZGJkIACRIiwQ" {
+		t.Fatalf("non-CF outbound must use tunnel REALITY: %v", proxy["tls"])
+	}
+	mustCheck(t, b)
+}
+
 func TestSplitHostPort(t *testing.T) {
 	h, p := splitHostPort("www.microsoft.com:8443", 443)
 	if h != "www.microsoft.com" || p != 8443 {
