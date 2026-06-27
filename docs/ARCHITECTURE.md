@@ -20,10 +20,11 @@ for the original requirements seed.
 ## 2. Topology
 
 ```
-[Client + Hiddify] ──VLESS / REALITY+WS+mux──▶ [RU node] ══ CDN-fronted WS tunnel ══▶ [EU node] ──▶ Internet
-                                                       │ owns ALL routing
-                                                       ▼
-                                          RU-zone + intl-allowlist exit locally
+[Client + Hiddify] ──VLESS / REALITY + multiplex──▶ [RU node: sing-box] ── HTTPUpgrade+TLS+mux via CF ──▶ [EU node: sing-box] ──▶ Internet
+                                                            │ owns ALL routing
+                                                            ▼
+                                               RU-zone + intl-allowlist exit locally
+                                               (RU egress handshakes hardened by nfqws2 desync)
 
   subscription pull:  [Hiddify] ── HTTPS ──▶ [Cloudflare] ──▶ [EU node]
   RU config sync:     [RU node] ── HTTPS pull ──▶ [Cloudflare] ──▶ [EU node]   (looks like normal web; no SSH)
@@ -31,25 +32,33 @@ for the original requirements seed.
 ```
 
 The "Russian Doll": the client tunnels to the **RU node**, which tunnels again to the
-**EU node**. Two hops RKN can observe:
+**EU node**. **Both nodes run sing-box** — one core, so the Hiddify (sing-box) client and both
+nodes share one protocol and one multiplex scheme end to end. Two hops RKN can observe, but only
+the first is actually inspected by the June-2026 scheme:
 
-1. **Client → RU node (domestic).** Carries **VLESS + WebSocket + mux + REALITY** so a real
-   **Hiddify (sing-box)** client can speak it. REALITY borrows a famous site's TLS identity
-   (+ a real decoy web server) for active-probing camouflage and the JA4/fingerprint signal;
-   **mux** smooths the connection-frequency signal. (Caveat: the June-2026 scheme keys the
-   *subnet* signal on the **first hop's** destination, so the RU node's own subnet still
-   matters here — prefer a clean/residential RU subnet; see §6.)
-2. **RU node → EU node (cross-border).** Carries **VLESS + WebSocket + mux** behind
-   **Cloudflare** (REALITY can't sit behind a CDN, so this hop is WS over CF-terminated TLS).
-   CDN-fronting removes the "suspicious subnet" signal on the cross-border hop; **mux** removes
-   the "connection frequency" signal.
+1. **Client → RU node (domestic) — the inspected hop.** Carries **VLESS + REALITY + multiplex**.
+   REALITY borrows a famous site's TLS identity (+ a real decoy web server) to defeat the
+   *subnet* (on a clean RU subnet) and *fingerprint* signals; **multiplex** defeats the
+   *parallel-frequency* signal — and because both ends are sing-box, the multiplex actually
+   negotiates. Breaking any one of the three signals suppresses the restriction; REALITY breaks
+   two. (Caveat: the *subnet* signal keys on this first hop's destination, so the RU node's own
+   subnet matters — prefer a clean/residential RU subnet; see §6.)
+2. **RU node → EU node (cross-border) — not inspected.** Carries **VLESS + HTTPUpgrade + TLS +
+   multiplex** behind **Cloudflare**. The hop terminates at a Cloudflare IP whose subnet is
+   de-facto whitelisted, so the three-signal chain is already broken at Signal-1 here — this hop
+   only needs to be CDN-frontable and resemble normal web traffic. EU's inbound runs with
+   `security: none` because Cloudflare terminates the public TLS.
 
-> **Why WebSocket, not XHTTP (changed 2026-06-27):** XHTTP is xray-only — **sing-box (Hiddify's
-> core) does not support it**, so an XHTTP server is unreachable by real Hiddify clients. The
-> June-2026 dpi-tls analysis names the Signal-1 fix as "VLESS over **XHTTP / WebSocket** behind
-> Cloudflare" (WS is an equal CDN transport) and Signal-3 as **mux** (XMUX is just xray's mux).
-> So **WS + mux + CDN** satisfies the same three-signal model while keeping the granny-grade
-> Hiddify client. XHTTP+xray-client remains a swappable future profile (§6).
+> **Why this stack (decided 2026-06-27, Lane B):** the earlier `WS + mux + REALITY + Hiddify`
+> design was broken three ways — WebSocket self-signatures and is xray-deprecated; its mux was
+> **inoperative** across the xray-server/sing-box-client split (`mux.cool` ≠ sing-box multiplex),
+> silently leaving Signal-3 unmitigated; and uTLS is disavowed by sing-box's own maintainers.
+> XHTTP (the all-three-signal cure) is **xray-only** and unreachable by the Hiddify app. Lane B
+> resolves this by putting **sing-box on both nodes** so multiplex works end to end, using
+> **REALITY+multiplex** on the inspected domestic hop and a light **HTTPUpgrade** transport on
+> the CF-cleared cross-border hop. uTLS's residual weakness is accepted (clean subnet + REALITY
+> already break the chain); **AnyTLS** is the documented future Signal-2 hedge (§6). See
+> `docs/superpowers/specs/2026-06-27-lane-b-singbox-design.md`.
 
 **All client traffic goes to the RU node.** Clients do **no** routing — they never learn the
 topology and cannot misconfigure or leak it. The RU node owns routing decisions:
@@ -68,20 +77,22 @@ the EU node, which is the internet exit.
 ### RU node — entry + router (native systemd services)
 | Unit | Role |
 |---|---|
-| `rdda-xray.service` | xray-core: terminates client VLESS (REALITY + WebSocket + mux); originates the WS tunnel to EU |
+| `rdda-singbox.service` | sing-box: terminates client VLESS (REALITY + multiplex); originates the HTTPUpgrade tunnel to EU via Cloudflare |
+| `rdda-nfqws.service` | nfqws2 (zapret2): DPI-desync of the RU node's **outbound** 443 handshakes (→EU, →direct allowlist) via an nft egress hook — survives local RU-ISP DPI |
 | `rdda-decoy.service` | nginx serving a plausible site — REALITY `dest` + active-probing camouflage |
 | `rdda-router.service` | applies nft/ipset rules so RU-zone + intl-allowlist egress locally, default → EU tunnel |
 | `rdda-pull.timer` | periodically pulls desired config (incl. new clients) from EU over Cloudflare |
 | `rdda-health.timer` | local health check; restarts unhealthy units, reports status |
 
 Client-exposing data (UUIDs, nicknames) lives in the running config only; nothing extra is
-persisted beyond what xray needs to serve clients.
+persisted beyond what sing-box needs to serve clients. The nfqws2 desync layer is **fail-open**:
+a desync failure must not break the tunnel path.
 
 ### EU node — controller + exit (native systemd services, behind Cloudflare)
 | Unit | Role |
 |---|---|
-| `rdda-xray.service` | xray-core: terminates the RU→EU tunnel; exits to the internet |
-| `rdda-sub.service` | subscription endpoint: serves per-client Hiddify configs (behind Cloudflare) |
+| `rdda-singbox.service` | sing-box: terminates the RU→EU HTTPUpgrade tunnel (TLS terminated by Cloudflare, so `security: none`); exits to the internet |
+| `rdda-sub.service` | subscription endpoint: serves per-client **sing-box JSON** configs (REALITY + multiplex; behind Cloudflare) |
 | `rdda-health.timer` | aggregates EU + RU health; triggers operator alerts |
 
 EU node is the **single source of truth**.
@@ -121,8 +132,8 @@ Commands are short, single-purpose, and print clear human-readable output.
 
 ```
 clients/            # one file per client (name, UUID, metadata)
-config.yaml         # node + transport settings
-VERSION             # pinned component versions (xray, etc.)
+config.yaml         # node + transport settings + desync: (nfqws2) block
+VERSION             # pinned component versions (sing-box, nfqws2, etc.)
 ```
 No database. `rdda backup` is a tar of this directory. The RU node's pulled config is derived
 from these files.
@@ -131,21 +142,30 @@ from these files.
 
 ## 6. Swappable transport — a config value, not a framework
 
-The transport/obfuscation engine is selected by a **profile** in `config.yaml` plus an xray
-config template. Censorship is a never-ending chase, so the engine must be replaceable
-without rearchitecting.
+The transport/obfuscation engine is selected by a **profile** in `config.yaml` plus a sing-box
+config template. Censorship is a never-ending chase, so the engine must be replaceable without
+rearchitecting. **One core (sing-box) on both nodes** is a deliberate constraint: it keeps the
+protocol and multiplex scheme identical end to end, which is exactly what the previous mixed-core
+design got wrong.
 
-- **Default:** `VLESS + WebSocket + mux (+ REALITY client-side / CDN-TLS cross-border)` —
-  defeats all three signals of the June-2026 passive DPI scheme: **subnet** via CDN-fronting
-  (the structural fix; REALITY never helped here), **frequency** via mux, **fingerprint** via a
-  non-Chrome uTLS profile + REALITY. Chosen over XHTTP because **sing-box/Hiddify cannot speak
-  XHTTP**; the dpi-tls-june-2026 analysis lists WebSocket-behind-Cloudflare as an equal Signal-1
-  fix and mux (not XMUX specifically) as the Signal-3 fix. Pick a **non-Chrome** uTLS
-  fingerprint (Firefox/Safari/Edge/iOS/OkHttp) — mimicking Chrome is now itself a flag.
-- **Future profiles (drop-in):** `XHTTP + XMUX + REALITY` with an **xray-core client**
-  (strongest/newest, but not Hiddify-compatible), Vision+REALITY direct (faster, for un-flagged
-  subnets), AmneziaWG, NaiveProxy, and `zapret2`/`nfqws2` (Lua-based desync) as an
-  egress-handshake helper. (zapret v1/`nfqws` is EOL; zapret2 is the maintained successor.)
+- **Default (Lane B):** domestic hop = `VLESS + REALITY (no flow) + multiplex` with a non-Chrome
+  uTLS preset; cross-border hop = `VLESS + HTTPUpgrade + TLS + multiplex` behind Cloudflare.
+  Against the June-2026 passive DPI scheme: **subnet** broken on the domestic hop by a clean RU
+  subnet + REALITY's borrowed identity (and structurally by Cloudflare on the cross-border hop),
+  **fingerprint** by the non-Chrome uTLS preset + REALITY, **frequency** by multiplex (now
+  functional, since both ends are sing-box). Breaking any one signal suffices; REALITY breaks two.
+  Pick a **non-Chrome** uTLS fingerprint (Firefox default / Safari / Edge / iOS) — mimicking
+  Chrome is now itself a flag.
+- **uTLS caveat:** sing-box's maintainers document uTLS as imperfect for fingerprint resistance.
+  Accepted residual risk here (clean subnet + REALITY already break the chain). **AnyTLS**
+  (sing-box's native anti-detection protocol with its own multiplex) is the planned drop-in
+  Signal-2 hedge.
+- **Future profiles (drop-in):** `AnyTLS` (domestic-hop Signal-2 hedge), Vision+REALITY direct
+  (faster, for un-flagged subnets), AmneziaWG, NaiveProxy. The CF-hop transport can fall back to
+  **WebSocket** if HTTPUpgrade-through-Cloudflare proves unreliable.
+- **Egress hardening (not a transport):** `zapret2`/`nfqws2` on the RU node desyncs RDDA's own
+  outbound handshakes against local RU-ISP DPI (§3, `rdda-nfqws.service`). It is complementary,
+  fail-open, and never a client. (zapret v1/`nfqws` is EOL; zapret2 is the maintained successor.)
 
 Switching engines = change one profile value + its template; no other code changes.
 
@@ -166,10 +186,16 @@ Switching engines = change one profile value + its template; no other code chang
 
 ## 8. Testing & delivery (TDD-first)
 
-- **Unit tests:** config templating, routing-rule generation, subscription generation.
+- **Unit tests:** sing-box config templating (per transport branch), routing-rule generation,
+  sing-box-JSON subscription generation.
 - **Integration (every minor release, GitHub Actions):** containerized
-  **EU node ⇄ RU node ⇄ simple Linux xray client** — assert tunnel comes up, routing split is
-  correct, and the generated subscription is valid.
+  **EU node ⇄ RU node ⇄ real sing-box (Hiddify-core) client** behind real Cloudflare — assert
+  tunnel comes up, **multiplex actually negotiates** (guards against silent Signal-3 regression),
+  REALITY handshake succeeds, routing split is correct, and the subscription is consumable by
+  sing-box. The client core must be the **real production core**, never a stand-in, or
+  transport/multiplex divergence passes silently.
+- **De-risk first:** before the migration, a focused smoke proves HTTPUpgrade survives Cloudflare
+  and a real Hiddify negotiates REALITY+multiplex to a sing-box inbound.
 - **Optional DPI smoke:** run `dpi-checkers` against a staged node.
 - GitHub-hosted, CI on GitHub Actions.
 
@@ -178,7 +204,7 @@ Switching engines = change one profile value + its template; no other code chang
 ## 9. Deliberately NOT building (YAGNI)
 
 - No custom client app — use Hiddify.
-- No custom tunnel protocol — use xray-core.
+- No custom tunnel protocol — use sing-box (one core on both nodes).
 - No Ansible / no always-on control API — local CLI + pull-based sync.
 - No Docker — native systemd for observability.
 - No database — plain files.
