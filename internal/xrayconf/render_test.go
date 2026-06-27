@@ -30,7 +30,7 @@ func TestRenderRUIsValidJSONWithClientsAndRouting(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	s := string(b)
-	for _, want := range []string{"uuid-1", "xhttp", "reality", "cpriv", "tpub", "geoip:ru", "wikipedia.org", "eu.example.net"} {
+	for _, want := range []string{"uuid-1", "ws", "reality", "cpriv", "tpub", "geoip:ru", "wikipedia.org", "eu.example.net"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("RU config missing %q", want)
 		}
@@ -67,8 +67,8 @@ func TestRenderClient(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	s := string(b)
-	// Must contain client UUID, socks inbound, xhttp+reality outbound with CLIENT reality params.
-	for _, want := range []string{"client-uuid-9", "socks", "xhttp", "reality", "cpub", "www.microsoft.com", "/cl", `"shortId"`, `"serverName"`, `"publicKey"`} {
+	// Must contain client UUID, socks inbound, ws+reality outbound with CLIENT reality params.
+	for _, want := range []string{"client-uuid-9", "socks", "ws", "reality", "cpub", "www.microsoft.com", "/cl", `"shortId"`, `"serverName"`, `"publicKey"`} {
 		if !strings.Contains(s, want) {
 			t.Errorf("client config missing %q", want)
 		}

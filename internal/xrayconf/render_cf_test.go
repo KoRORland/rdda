@@ -42,9 +42,10 @@ func TestRenderRU_CFTunnelOutboundUsesTLSNotReality(t *testing.T) {
 	if tls["serverName"] != "tunnel.example.com" {
 		t.Fatalf("tls serverName = %v, want tunnel.example.com", tls["serverName"])
 	}
-	xh := ss["xhttpSettings"].(map[string]any)
-	if xh["host"] != "tunnel.example.com" || xh["path"] != "/tpath" {
-		t.Fatalf("xhttp host/path wrong: %v %v", xh["host"], xh["path"])
+	ws := ss["wsSettings"].(map[string]any)
+	headers := ws["headers"].(map[string]any)
+	if headers["Host"] != "tunnel.example.com" || ws["path"] != "/tpath" {
+		t.Fatalf("ws Host/path wrong: %v %v", headers["Host"], ws["path"])
 	}
 }
 

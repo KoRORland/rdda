@@ -20,9 +20,9 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 		"listen": "0.0.0.0", "port": cfg.RUPort, "protocol": "vless", "tag": "in",
 		"settings": obj{"clients": xrayClients, "decryption": "none"},
 		"streamSettings": obj{
-			"network":      "xhttp",
-			"xhttpSettings": obj{"path": cfg.ClientPath},
-			"security":     "reality",
+			"network":    "ws",
+			"wsSettings": obj{"path": cfg.ClientPath},
+			"security":   "reality",
 			"realitySettings": obj{
 				"target":      cfg.ClientReality.Target,
 				"serverNames": []string{cfg.ClientReality.ServerName},
@@ -42,15 +42,16 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 				"users": []obj{{"id": cfg.TunnelUUID, "encryption": "none", "flow": ""}},
 			}}},
 			"streamSettings": obj{
-				"network":       "xhttp",
-				"xhttpSettings": obj{"path": cfg.TunnelPath, "host": cfg.Cloudflare.TunnelHostname},
-				"security":      "tls",
+				"network":    "ws",
+				"wsSettings": obj{"path": cfg.TunnelPath, "headers": obj{"Host": cfg.Cloudflare.TunnelHostname}},
+				"security":   "tls",
 				"tlsSettings": obj{
 					"serverName":  cfg.Cloudflare.TunnelHostname,
 					"alpn":        []string{"h2", "http/1.1"},
-					"fingerprint": "chrome",
+					"fingerprint": cfg.FP(),
 				},
 			},
+			"mux": obj{"enabled": true, "concurrency": 8, "xudpConcurrency": 16},
 		}
 	} else {
 		proxyOut = obj{
@@ -60,16 +61,17 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 				"users": []obj{{"id": cfg.TunnelUUID, "encryption": "none", "flow": ""}},
 			}}},
 			"streamSettings": obj{
-				"network":       "xhttp",
-				"xhttpSettings": obj{"path": cfg.TunnelPath},
-				"security":      "reality",
+				"network":    "ws",
+				"wsSettings": obj{"path": cfg.TunnelPath},
+				"security":   "reality",
 				"realitySettings": obj{
 					"serverName":  cfg.TunnelReality.ServerName,
 					"publicKey":   cfg.TunnelReality.PublicKey,
 					"shortId":     firstOrEmpty(cfg.TunnelReality.ShortIDs),
-					"fingerprint": "chrome",
+					"fingerprint": cfg.FP(),
 				},
 			},
+			"mux": obj{"enabled": true, "concurrency": 8, "xudpConcurrency": 16},
 		}
 	}
 
@@ -115,16 +117,17 @@ func RenderClient(cfg state.Config, clientUUID string, socksPort int) ([]byte, e
 			"users": []obj{{"id": clientUUID, "encryption": "none", "flow": ""}},
 		}}},
 		"streamSettings": obj{
-			"network":       "xhttp",
-			"xhttpSettings": obj{"path": cfg.ClientPath},
-			"security":      "reality",
+			"network":    "ws",
+			"wsSettings": obj{"path": cfg.ClientPath},
+			"security":   "reality",
 			"realitySettings": obj{
 				"serverName":  cfg.ClientReality.ServerName,
 				"publicKey":   cfg.ClientReality.PublicKey,
 				"shortId":     firstOrEmpty(cfg.ClientReality.ShortIDs),
-				"fingerprint": "chrome",
+				"fingerprint": cfg.FP(),
 			},
 		},
+		"mux": obj{"enabled": true, "concurrency": 8, "xudpConcurrency": 16},
 	}
 	doc := obj{
 		"log":       obj{"loglevel": "warning"},
@@ -145,9 +148,9 @@ func RenderEU(cfg state.Config) ([]byte, error) {
 				"decryption": "none",
 			},
 			"streamSettings": obj{
-				"network":       "xhttp",
-				"xhttpSettings": obj{"path": cfg.TunnelPath},
-				"security":      "none",
+				"network":    "ws",
+				"wsSettings": obj{"path": cfg.TunnelPath},
+				"security":   "none",
 			},
 			"sniffing": obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}},
 		}
@@ -159,9 +162,9 @@ func RenderEU(cfg state.Config) ([]byte, error) {
 				"decryption": "none",
 			},
 			"streamSettings": obj{
-				"network":       "xhttp",
-				"xhttpSettings": obj{"path": cfg.TunnelPath},
-				"security":      "reality",
+				"network":    "ws",
+				"wsSettings": obj{"path": cfg.TunnelPath},
+				"security":   "reality",
 				"realitySettings": obj{
 					"target":      cfg.TunnelReality.Target,
 					"serverNames": []string{cfg.TunnelReality.ServerName},
