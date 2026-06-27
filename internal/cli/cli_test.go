@@ -100,6 +100,16 @@ func TestRenderClient(t *testing.T) {
 	}
 }
 
+func TestInitSetsFingerprint(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "r", "--eu-host", "e", "--fingerprint", "safari")
+	s, _ := state.Open(dir)
+	cfg, _ := s.LoadConfig()
+	if cfg.Fingerprint != "safari" {
+		t.Fatalf("fingerprint = %q, want safari", cfg.Fingerprint)
+	}
+}
+
 func TestVersionIsOverridable(t *testing.T) {
 	// Version must be a var (ldflags-injectable), defaulting to a non-empty string.
 	if Version == "" {

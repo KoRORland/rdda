@@ -47,6 +47,7 @@ func newRoot() *cobra.Command {
 func newInitCmd(dir *string) *cobra.Command {
 	var ruHost, euHost, clientSNI, tunnelSNI string
 	var cfTunnelHost, cfSubHost, cfTunnelID, cfCredsFile string
+	var fp string
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate keys and write config.yaml",
@@ -77,6 +78,7 @@ func newInitCmd(dir *string) *cobra.Command {
 			}
 			cfg := state.Config{
 				RUHost: ruHost, RUPort: 443, EUHost: euHost, EUPort: 443,
+				Fingerprint: fp,
 				ClientPath: "/cl", TunnelPath: "/tn",
 				TunnelUUID: keys.NewUUID(),
 				SubBaseURL: "https://" + euHost,
@@ -113,6 +115,7 @@ func newInitCmd(dir *string) *cobra.Command {
 	cmd.Flags().StringVar(&cfSubHost, "cf-sub-host", "", "Cloudflare hostname for the subscription endpoint")
 	cmd.Flags().StringVar(&cfTunnelID, "cf-tunnel-id", "", "Cloudflare Tunnel ID")
 	cmd.Flags().StringVar(&cfCredsFile, "cf-credentials-file", "", "path to the cloudflared tunnel credentials JSON")
+	cmd.Flags().StringVar(&fp, "fingerprint", "firefox", "uTLS fingerprint to mimic (non-Chrome recommended)")
 	return cmd
 }
 
