@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/KoRORland/rdda/internal/state"
-	"github.com/KoRORland/rdda/internal/xrayconf"
+	"github.com/KoRORland/rdda/internal/singboxconf"
 )
 
 func cfg() state.Config {
@@ -93,7 +93,7 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 	client := state.Client{Name: "alice", UUID: "client-uuid-1", ShortID: "deadbeef"}
 
 	// Render RU config and unmarshal as generic map.
-	raw, err := xrayconf.RenderRU(c, []state.Client{client})
+	raw, err := singboxconf.RenderRU(c, []state.Client{client})
 	if err != nil {
 		t.Fatalf("RenderRU: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 		t.Fatalf("unmarshal RU config: %v", err)
 	}
 
-	// Navigate to the first inbound's streamSettings.realitySettings.
+	// Navigate to the first inbound's tls.reality (sing-box structure).
 	inboundsAny, ok := doc["inbounds"]
 	if !ok {
 		t.Fatal("RU config missing 'inbounds'")
@@ -115,49 +115,25 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 	if !ok {
 		t.Fatal("inbounds[0] is not map[string]any")
 	}
-	streamAny, ok := inbound["streamSettings"]
+	tls, ok := inbound["tls"].(map[string]any)
 	if !ok {
-		t.Fatal("inbound missing 'streamSettings'")
+		t.Fatal("inbound missing 'tls'")
 	}
-	stream, ok := streamAny.(map[string]any)
+	reality, ok := tls["reality"].(map[string]any)
 	if !ok {
-		t.Fatal("streamSettings is not map[string]any")
+		t.Fatal("tls missing 'reality'")
 	}
-	realityAny, ok := stream["realitySettings"]
+	ruSNI, ok := tls["server_name"].(string)
 	if !ok {
-		t.Fatal("streamSettings missing 'realitySettings'")
+		t.Fatal("tls.server_name is not a string")
 	}
-	reality, ok := realityAny.(map[string]any)
+	shortIdsAny, ok := reality["short_id"]
 	if !ok {
-		t.Fatal("realitySettings is not map[string]any")
-	}
-	serverNamesAny, ok := reality["serverNames"]
-	if !ok {
-		t.Fatal("realitySettings missing 'serverNames'")
-	}
-	serverNames, ok := serverNamesAny.([]any)
-	if !ok {
-		t.Fatal("serverNames is not []any")
-	}
-	shortIdsAny, ok := reality["shortIds"]
-	if !ok {
-		t.Fatal("realitySettings missing 'shortIds'")
+		t.Fatal("reality missing 'short_id'")
 	}
 	shortIds, ok := shortIdsAny.([]any)
 	if !ok {
-		t.Fatal("shortIds is not []any")
-	}
-	wsAny, ok := stream["wsSettings"]
-	if !ok {
-		t.Fatal("streamSettings missing 'wsSettings'")
-	}
-	ws, ok := wsAny.(map[string]any)
-	if !ok {
-		t.Fatal("wsSettings is not map[string]any")
-	}
-	ruPath, ok := ws["path"].(string)
-	if !ok {
-		t.Fatal("wsSettings.path is not a string")
+		t.Fatal("reality.short_id is not []any")
 	}
 
 	// Parse the subscription URI.
@@ -168,10 +144,9 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 	}
 	q := u.Query()
 	uriSID := q.Get("sid")
-	uriPath := q.Get("path")
 	uriSNI := q.Get("sni")
 
-	// Assert sid is in the RU inbound's shortIds list.
+	// Assert sid is in the RU inbound's short_id list.
 	sidFound := false
 	for _, v := range shortIds {
 		s, ok := v.(string)
@@ -184,27 +159,11 @@ func TestSubscriptionMatchesRUInbound(t *testing.T) {
 		}
 	}
 	if !sidFound {
-		t.Errorf("URI sid=%q not found in RU inbound shortIds %v", uriSID, shortIds)
+		t.Errorf("URI sid=%q not found in RU inbound short_id %v", uriSID, shortIds)
 	}
 
-	// Assert path matches.
-	if uriPath != ruPath {
-		t.Errorf("URI path=%q does not match RU inbound wsSettings.path=%q", uriPath, ruPath)
-	}
-
-	// Assert sni is in the RU inbound's serverNames list.
-	sniFound := false
-	for _, v := range serverNames {
-		s, ok := v.(string)
-		if !ok {
-			continue
-		}
-		if s == uriSNI {
-			sniFound = true
-			break
-		}
-	}
-	if !sniFound {
-		t.Errorf("URI sni=%q not found in RU inbound serverNames %v", uriSNI, serverNames)
+	// Assert sni matches the RU inbound's server_name.
+	if uriSNI != ruSNI {
+		t.Errorf("URI sni=%q does not match RU inbound tls.server_name=%q", uriSNI, ruSNI)
 	}
 }

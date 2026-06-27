@@ -12,7 +12,7 @@ import (
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subserver"
 	"github.com/KoRORland/rdda/internal/subscription"
-	"github.com/KoRORland/rdda/internal/xrayconf"
+	"github.com/KoRORland/rdda/internal/singboxconf"
 	"github.com/spf13/cobra"
 )
 
@@ -107,7 +107,7 @@ func newInitCmd(dir *string) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&ruHost, "ru-host", "", "RU node public host/IP (required)")
 	cmd.Flags().StringVar(&euHost, "eu-host", "", "EU node public host/IP (required)")
-	cmd.Flags().StringVar(&clientSNI, "client-sni", "www.microsoft.com", "REALITY SNI for client→RU hop")
+	cmd.Flags().StringVar(&clientSNI, "client-sni", "www.apple.com", "REALITY SNI for client→RU hop")
 	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "www.apple.com", "REALITY SNI for RU→EU hop")
 	_ = cmd.MarkFlagRequired("ru-host")
 	_ = cmd.MarkFlagRequired("eu-host")
@@ -183,10 +183,10 @@ func newClientCmd(dir *string) *cobra.Command {
 func newRenderCmd(dir *string) *cobra.Command {
 	var clientUUID string
 	var socksPort int
-	cmd := &cobra.Command{Use: "render", Short: "Render xray configs"}
+	cmd := &cobra.Command{Use: "render", Short: "Render sing-box configs"}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "ru",
-		Short: "Render the RU node xray config",
+		Short: "Render the RU node sing-box config",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := state.Open(*dir)
 			if err != nil {
@@ -200,7 +200,7 @@ func newRenderCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			b, err := xrayconf.RenderRU(cfg, clients)
+			b, err := singboxconf.RenderRU(cfg, clients)
 			if err != nil {
 				return err
 			}
@@ -210,7 +210,7 @@ func newRenderCmd(dir *string) *cobra.Command {
 	})
 	cmd.AddCommand(&cobra.Command{
 		Use:   "eu",
-		Short: "Render the EU node xray config",
+		Short: "Render the EU node sing-box config",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := state.Open(*dir)
 			if err != nil {
@@ -220,7 +220,7 @@ func newRenderCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			b, err := xrayconf.RenderEU(cfg)
+			b, err := singboxconf.RenderEU(cfg)
 			if err != nil {
 				return err
 			}
@@ -230,7 +230,7 @@ func newRenderCmd(dir *string) *cobra.Command {
 	})
 	clientCmd := &cobra.Command{
 		Use:   "client",
-		Short: "Render a client-side xray config (SOCKS inbound → RU)",
+		Short: "Render a client-side sing-box config (SOCKS inbound → RU)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := state.Open(*dir)
 			if err != nil {
@@ -240,7 +240,7 @@ func newRenderCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			b, err := xrayconf.RenderClient(cfg, clientUUID, socksPort)
+			b, err := singboxconf.RenderClient(cfg, clientUUID, socksPort)
 			if err != nil {
 				return err
 			}

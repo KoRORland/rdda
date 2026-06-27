@@ -8,7 +8,7 @@ import (
 
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subscription"
-	"github.com/KoRORland/rdda/internal/xrayconf"
+	"github.com/KoRORland/rdda/internal/singboxconf"
 )
 
 // Handler serves GET /sub/<token>.
@@ -57,7 +57,7 @@ func Handler(store *state.Store) http.Handler {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		b, err := xrayconf.RenderRU(cfg, clients)
+		b, err := singboxconf.RenderRU(cfg, clients)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return

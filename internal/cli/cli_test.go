@@ -64,7 +64,7 @@ func TestRenderRUEU(t *testing.T) {
 	if err := json.Unmarshal([]byte(ru), &doc); err != nil {
 		t.Fatalf("render ru not JSON: %v", err)
 	}
-	if !strings.Contains(ru, "geoip:ru") {
+	if !strings.Contains(ru, "geoip-ru") {
 		t.Error("RU render missing routing")
 	}
 	eu := run(t, "--dir", dir, "render", "eu")
@@ -89,11 +89,11 @@ func TestRenderClient(t *testing.T) {
 		t.Fatalf("render client missing inbounds: %s", out)
 	}
 	in := inbounds[0].(map[string]any)
-	if in["protocol"] != "socks" {
-		t.Errorf("expected socks inbound, got %v", in["protocol"])
+	if in["type"] != "socks" {
+		t.Errorf("expected socks inbound, got %v", in["type"])
 	}
-	if port, _ := in["port"].(float64); int(port) != 19080 {
-		t.Errorf("expected socks inbound on port 19080, got %v", in["port"])
+	if port, _ := in["listen_port"].(float64); int(port) != 19080 {
+		t.Errorf("expected socks inbound on port 19080, got %v", in["listen_port"])
 	}
 	if !strings.Contains(out, uuid) {
 		t.Errorf("render client output should embed the client UUID, got: %s", out)
