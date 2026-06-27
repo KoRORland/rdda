@@ -42,6 +42,7 @@ type Config struct {
 	TunnelReality    Reality    `yaml:"tunnel_reality"`
 	Cloudflare       Cloudflare `yaml:"cloudflare"`
 	PullToken        string     `yaml:"pull_token"`
+	Fingerprint      string     `yaml:"fingerprint"`
 }
 
 // Store is a directory-backed RDDA state store.
@@ -84,3 +85,12 @@ func (s *Store) LoadConfig() (Config, error) {
 
 // CFEnabled reports whether the RU→EU hop should go through Cloudflare.
 func (c Config) CFEnabled() bool { return c.Cloudflare.TunnelHostname != "" }
+
+// FP returns the uTLS fingerprint to mimic; defaults to a non-Chrome profile
+// (mimicking Chrome is itself a DPI flag under the June-2026 scheme).
+func (c Config) FP() string {
+	if c.Fingerprint == "" {
+		return "firefox"
+	}
+	return c.Fingerprint
+}

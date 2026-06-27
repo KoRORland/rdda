@@ -49,3 +49,22 @@ func TestConfigCFDisabledByDefault(t *testing.T) {
 		t.Fatal("CFEnabled() must be false for an empty cloudflare block")
 	}
 }
+
+func TestConfigFingerprintDefault(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	if err := s.SaveConfig(Config{RUHost: "ru.example"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FP() != "firefox" {
+		t.Fatalf("FP() default = %q, want firefox", got.FP())
+	}
+	got.Fingerprint = "safari"
+	if got.FP() != "safari" {
+		t.Fatalf("FP() = %q, want safari", got.FP())
+	}
+}
