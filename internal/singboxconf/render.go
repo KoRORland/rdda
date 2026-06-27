@@ -2,6 +2,7 @@
 package singboxconf
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -31,4 +32,29 @@ func firstOrEmpty(s []string) string {
 	return s[0]
 }
 
-var _ = state.Config{} // keep the import until render funcs land
+// RenderClient builds a sing-box client config: SOCKS inbound -> VLESS/REALITY/
+// multiplex outbound to the RU node. clientUUID must match a UUID the RU serves.
+func RenderClient(cfg state.Config, clientUUID string, socksPort int) ([]byte, error) {
+	out := obj{
+		"type": "vless", "tag": "proxy",
+		"server": cfg.RUHost, "server_port": cfg.RUPort,
+		"uuid": clientUUID,
+		"tls": obj{
+			"enabled":     true,
+			"server_name": cfg.ClientReality.ServerName,
+			"utls":        obj{"enabled": true, "fingerprint": cfg.FP()},
+			"reality": obj{
+				"enabled":    true,
+				"public_key": cfg.ClientReality.PublicKey,
+				"short_id":   firstOrEmpty(cfg.ClientReality.ShortIDs),
+			},
+		},
+		"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},
+	}
+	doc := obj{
+		"log":       obj{"level": "warn"},
+		"inbounds":  []obj{{"type": "socks", "tag": "socks-in", "listen": "127.0.0.1", "listen_port": socksPort}},
+		"outbounds": []obj{out, {"type": "direct", "tag": "direct"}},
+	}
+	return json.MarshalIndent(doc, "", "  ")
+}
