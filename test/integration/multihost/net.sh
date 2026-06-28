@@ -40,12 +40,18 @@ Name=host0
 [Network]
 Address=${IP[$h]}/24
 Gateway=203.0.113.1
-DNS=203.0.113.1
+DNS=8.8.8.8
 NET
   printf '%s\n' "$HOSTS_BLOCK" > "$root/etc/hosts"
+  # Give the container a working resolver. nspawn would otherwise copy the
+  # runner's /etc/resolv.conf (a 127.0.0.53 systemd-resolved stub that does not
+  # run inside the container -> all DNS refused). With --resolv-conf=off below,
+  # nspawn leaves this file alone. /etc/hosts still wins for the in-network names.
+  rm -f "$root/etc/resolv.conf"
+  printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$root/etc/resolv.conf"
   log "boot rdda-$h"
   systemd-nspawn -D "$root" --machine="rdda-$h" \
-    --network-bridge=br-rdda --boot --quiet &
+    --network-bridge=br-rdda --resolv-conf=off --boot --quiet &
 done
 
 log "wait for containers to boot"
