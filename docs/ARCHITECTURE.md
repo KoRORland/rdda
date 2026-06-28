@@ -20,7 +20,7 @@ for the original requirements seed.
 ## 2. Topology
 
 ```
-[Client + Hiddify] ──VLESS / REALITY + multiplex──▶ [RU node: sing-box] ── HTTPUpgrade+TLS+mux via CF ──▶ [EU node: sing-box] ──▶ Internet
+[Client + Hiddify] ──VLESS / REALITY + multiplex──▶ [RU node: sing-box] ── WebSocket+TLS+mux via CF ──▶ [EU node: sing-box] ──▶ Internet
                                                             │ owns ALL routing
                                                             ▼
                                                RU-zone + intl-allowlist exit locally
@@ -43,11 +43,11 @@ the first is actually inspected by the June-2026 scheme:
    negotiates. Breaking any one of the three signals suppresses the restriction; REALITY breaks
    two. (Caveat: the *subnet* signal keys on this first hop's destination, so the RU node's own
    subnet matters — prefer a clean/residential RU subnet; see §6.)
-2. **RU node → EU node (cross-border) — not inspected.** Carries **VLESS + HTTPUpgrade + TLS +
+2. **RU node → EU node (cross-border) — not inspected.** Carries **VLESS + WebSocket + TLS +
    multiplex** behind **Cloudflare**. The hop terminates at a Cloudflare IP whose subnet is
    de-facto whitelisted, so the three-signal chain is already broken at Signal-1 here — this hop
-   only needs to be CDN-frontable and resemble normal web traffic. EU's inbound runs with
-   `security: none` because Cloudflare terminates the public TLS.
+   only needs to be CDN-frontable and resemble normal web traffic. EU's WebSocket inbound runs
+   with **no TLS of its own** — Cloudflare terminates the public TLS.
 
 > **Why this stack (decided 2026-06-27, Lane B):** the earlier `WS + mux + REALITY + Hiddify`
 > design was broken three ways — WebSocket self-signatures and is xray-deprecated; its mux was
@@ -55,9 +55,12 @@ the first is actually inspected by the June-2026 scheme:
 > silently leaving Signal-3 unmitigated; and uTLS is disavowed by sing-box's own maintainers.
 > XHTTP (the all-three-signal cure) is **xray-only** and unreachable by the Hiddify app. Lane B
 > resolves this by putting **sing-box on both nodes** so multiplex works end to end, using
-> **REALITY+multiplex** on the inspected domestic hop and a light **HTTPUpgrade** transport on
-> the CF-cleared cross-border hop. uTLS's residual weakness is accepted (clean subnet + REALITY
-> already break the chain); **AnyTLS** is the documented future Signal-2 hedge (§6). See
+> **REALITY+multiplex** on the inspected domestic hop and a **WebSocket** transport on the
+> CF-cleared cross-border hop. (The Lane B spec first chose HTTPUpgrade for that hop; the P0
+> de-risk proved HTTPUpgrade does **not** survive Cloudflare — CF rewrites the plain HTTP/1.1
+> Upgrade into a true WebSocket the `httpupgrade` inbound rejects — so the shipped transport is
+> WebSocket.) uTLS's residual weakness is accepted (clean subnet + REALITY already break the
+> chain); **AnyTLS** is the documented future Signal-2 hedge (§6). See
 > `docs/superpowers/specs/2026-06-27-lane-b-singbox-design.md`.
 
 **All client traffic goes to the RU node.** Clients do **no** routing — they never learn the
@@ -77,12 +80,18 @@ the EU node, which is the internet exit.
 ### RU node — entry + router (native systemd services)
 | Unit | Role |
 |---|---|
-| `rdda-singbox.service` | sing-box: terminates client VLESS (REALITY + multiplex); originates the HTTPUpgrade tunnel to EU via Cloudflare |
+| `rdda-singbox.service` | sing-box: terminates client VLESS (REALITY + multiplex); originates the WebSocket tunnel to EU via Cloudflare; **owns routing** in its `route` block (RU-zone via a local geoip rule-set + intl-allowlist → direct, default → EU tunnel) |
 | `rdda-nfqws.service` | nfqws2 (zapret2): DPI-desync of the RU node's **outbound** 443 handshakes (→EU, →direct allowlist) via an nft egress hook — survives local RU-ISP DPI |
-| `rdda-decoy.service` | nginx serving a plausible site — REALITY `dest` + active-probing camouflage |
-| `rdda-router.service` | applies nft/ipset rules so RU-zone + intl-allowlist egress locally, default → EU tunnel |
 | `rdda-pull.timer` | periodically pulls desired config (incl. new clients) from EU over Cloudflare |
-| `rdda-health.timer` | local health check; restarts unhealthy units, reports status |
+| `rdda-health.timer` *(planned)* | local health check; restarts unhealthy units, reports status |
+
+> **Implemented vs designed:** routing and the REALITY camouflage are **folded into sing-box**, not
+> separate units. There is no `rdda-router.service` — routing lives in the sing-box `route` block
+> above (split-routing data is a **local** geoip-ru `.srs`, shipped at install time, so the data
+> plane never blocks startup on a remote download). There is no `rdda-decoy.service` — REALITY
+> borrows a **real external site** as its handshake `dest` (e.g. `www.apple.com`); unauthenticated
+> probes are transparently proxied to that real site, which *is* the active-probing camouflage, so
+> no local decoy web server is needed.
 
 Client-exposing data (UUIDs, nicknames) lives in the running config only; nothing extra is
 persisted beyond what sing-box needs to serve clients. The nfqws2 desync layer is **fail-open**:
@@ -91,9 +100,10 @@ a desync failure must not break the tunnel path.
 ### EU node — controller + exit (native systemd services, behind Cloudflare)
 | Unit | Role |
 |---|---|
-| `rdda-singbox.service` | sing-box: terminates the RU→EU HTTPUpgrade tunnel (TLS terminated by Cloudflare, so `security: none`); exits to the internet |
+| `rdda-singbox.service` | sing-box: terminates the RU→EU WebSocket tunnel (TLS terminated by Cloudflare, so the inbound runs no TLS); exits to the internet |
 | `rdda-sub.service` | subscription endpoint: serves per-client **sing-box JSON** configs (REALITY + multiplex; behind Cloudflare) |
-| `rdda-health.timer` | aggregates EU + RU health; triggers operator alerts |
+| `cloudflared.service` | Cloudflare Tunnel ingress (config rendered by `rdda render cloudflared`) — fronts the sub + tunnel endpoints with no inbound port exposed |
+| `rdda-health.timer` *(planned)* | aggregates EU + RU health; triggers operator alerts |
 
 EU node is the **single source of truth**.
 
@@ -149,7 +159,7 @@ protocol and multiplex scheme identical end to end, which is exactly what the pr
 design got wrong.
 
 - **Default (Lane B):** domestic hop = `VLESS + REALITY (no flow) + multiplex` with a non-Chrome
-  uTLS preset; cross-border hop = `VLESS + HTTPUpgrade + TLS + multiplex` behind Cloudflare.
+  uTLS preset; cross-border hop = `VLESS + WebSocket + TLS + multiplex` behind Cloudflare.
   Against the June-2026 passive DPI scheme: **subnet** broken on the domestic hop by a clean RU
   subnet + REALITY's borrowed identity (and structurally by Cloudflare on the cross-border hop),
   **fingerprint** by the non-Chrome uTLS preset + REALITY, **frequency** by multiplex (now
@@ -161,8 +171,9 @@ design got wrong.
   (sing-box's native anti-detection protocol with its own multiplex) is the planned drop-in
   Signal-2 hedge.
 - **Future profiles (drop-in):** `AnyTLS` (domestic-hop Signal-2 hedge), Vision+REALITY direct
-  (faster, for un-flagged subnets), AmneziaWG, NaiveProxy. The CF-hop transport can fall back to
-  **WebSocket** if HTTPUpgrade-through-Cloudflare proves unreliable.
+  (faster, for un-flagged subnets), AmneziaWG, NaiveProxy. (The CF-hop transport is **WebSocket**:
+  HTTPUpgrade-through-Cloudflare was tried in P0 de-risk and rejected — CF rewrites it to a true
+  WebSocket — so WebSocket is the shipped default, not a fallback.)
 - **Egress hardening (not a transport):** `zapret2`/`nfqws2` on the RU node desyncs RDDA's own
   outbound handshakes against local RU-ISP DPI (§3, `rdda-nfqws.service`). It is complementary,
   fail-open, and never a client. (zapret v1/`nfqws` is EOL; zapret2 is the maintained successor.)
@@ -188,14 +199,17 @@ Switching engines = change one profile value + its template; no other code chang
 
 - **Unit tests:** sing-box config templating (per transport branch), routing-rule generation,
   sing-box-JSON subscription generation.
-- **Integration (every minor release, GitHub Actions):** containerized
-  **EU node ⇄ RU node ⇄ real sing-box (Hiddify-core) client** behind real Cloudflare — assert
-  tunnel comes up, **multiplex actually negotiates** (guards against silent Signal-3 regression),
-  REALITY handshake succeeds, routing split is correct, and the subscription is consumable by
-  sing-box. The client core must be the **real production core**, never a stand-in, or
-  transport/multiplex divergence passes silently.
-- **De-risk first:** before the migration, a focused smoke proves HTTPUpgrade survives Cloudflare
-  and a real Hiddify negotiates REALITY+multiplex to a sing-box inbound.
+- **Integration (every minor release, GitHub Actions):** a containerized multi-host harness —
+  **EU node ⇄ RU node ⇄ real sing-box client** — behind a **Cloudflare stand-in** (nginx
+  WebSocket + a chisel reverse tunnel; the real CF edge is exercised in the P0 de-risk, not in
+  CI). Asserts the tunnel comes up, **multiplex actually negotiates** (guards against silent
+  Signal-3 regression), the routing split is correct (EU is the only exit), and config pull-sync
+  delivers a new client. The client core is the **real production core** (sing-box), never a
+  stand-in, or transport/multiplex divergence would pass silently. It runs as the pre-publish gate
+  on every `v*` release tag.
+- **De-risk first:** before the migration, a focused smoke against a **real Cloudflare tunnel**
+  established that HTTPUpgrade does **not** survive Cloudflare (→ WebSocket) and that a real
+  sing-box core negotiates REALITY+multiplex end to end.
 - **Optional DPI smoke:** run `dpi-checkers` against a staged node.
 - GitHub-hosted, CI on GitHub Actions.
 
