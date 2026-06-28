@@ -34,9 +34,12 @@ jq '.log.level = "debug"' /etc/rdda/singbox.json > /etc/rdda/singbox.json.new
 mv /etc/rdda/singbox.json.new /etc/rdda/singbox.json
 chown -R rdda:rdda /etc/rdda
 systemctl daemon-reload
-# nfqws desync is enabled in a follow-up iteration once the core tunnel is green;
-# its unit + nft are installed above so the deploy surface is exercised.
 systemctl enable --now rdda-singbox rdda-pull.timer
+# nfqws egress desync: enable it but tolerate failure. The nft rule is fail-open
+# (queue ... bypass), so the tunnel survives whether nfqws2 runs or not; NFQUEUE
+# may be restricted inside nspawn. The through-tunnel assertion then proves the
+# RU->EU handshake still completes with the desync active (or fail-open).
+systemctl enable --now rdda-nfqws || true
 INRU
 wait_active ru rdda-singbox
 log "ru provisioned"
