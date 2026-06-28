@@ -12,6 +12,8 @@ install -m0644 "$REPO_ROOT/deploy/systemd/rdda-singbox.service" "$root/etc/syste
 install -m0644 "$REPO_ROOT/deploy/systemd/rdda-pull.service"   "$root/etc/systemd/system/rdda-pull.service"
 install -m0644 "$REPO_ROOT/deploy/systemd/rdda-pull.timer"     "$root/etc/systemd/system/rdda-pull.timer"
 install -m0644 "$REPO_ROOT/deploy/systemd/rdda-nfqws.service"  "$root/etc/systemd/system/rdda-nfqws.service"
+install -m0644 "$REPO_ROOT/deploy/systemd/rdda-health.service" "$root/etc/systemd/system/rdda-health.service"
+install -m0644 "$REPO_ROOT/deploy/systemd/rdda-health.timer"   "$root/etc/systemd/system/rdda-health.timer"
 install -D -m0644 "$REPO_ROOT/deploy/nftables/rdda-nfqws.nft"  "$root/etc/rdda/rdda-nfqws.nft"
 
 log "fetch the pull token from EU (operator looks it up on EU)"
@@ -23,6 +25,7 @@ install -d -m0700 -o rdda -g rdda /etc/rdda
 cat > /etc/rdda/pull.env <<ENV
 RDDA_PULL_FROM=https://sub.rdda.test/ru/config
 RDDA_PULL_TOKEN=${TOKEN}
+RDDA_HEALTH_TO=https://sub.rdda.test/ru/health
 ENV
 chmod 600 /etc/rdda/pull.env
 # sudoers so the rdda user can reload sing-box after a pull
@@ -38,7 +41,7 @@ mv /etc/rdda/singbox.json.new /etc/rdda/singbox.json
 install -D -m0644 /usr/local/share/geoip-ru.srs /etc/rdda/geoip-ru.srs
 chown -R rdda:rdda /etc/rdda
 systemctl daemon-reload
-systemctl enable --now rdda-singbox rdda-pull.timer
+systemctl enable --now rdda-singbox rdda-pull.timer rdda-health.timer
 # nfqws unit + nft are INSTALLED (deploy surface exercised) but intentionally NOT
 # enabled here. Confirmed in CI: nfqws2 runs fine under nspawn (NFQUEUE binds), but
 # the fake,split2 desync corrupts the RU->edge TLS handshake on this single-hop

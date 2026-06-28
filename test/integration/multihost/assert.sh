@@ -45,4 +45,15 @@ done
 [ "$ok" = yes ] || die "pull-sync did not deliver the new client to RU"
 log "OK: pull-sync delivered the new client to RU"
 
+log "6) health beat: RU -> EU, visible in 'rdda status' on EU"
+# Fire one beat now (deterministic; the timer's first beat is ~2min out).
+nsrun ru systemctl start rdda-health.service
+ok=no
+for _ in $(seq 1 10); do
+  if nsrun eu bash -lc 'rdda status | grep -q "last beat"'; then ok=yes; break; fi
+  sleep 0.5
+done
+[ "$ok" = yes ] || { nsrun eu rdda status 2>&1 | sed 's/^/[eu-status] /' || true; die "EU rdda status did not show the RU health beat"; }
+log "OK: EU rdda status shows the RU node's health beat"
+
 log "ALL ASSERTIONS PASSED"
