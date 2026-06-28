@@ -47,7 +47,10 @@ log "OK: pull-sync delivered the new client to RU"
 
 log "6) health beat: RU -> EU, visible in 'rdda status' on EU"
 # Fire one beat now (deterministic; the timer's first beat is ~2min out).
-nsrun ru systemctl start rdda-health.service
+if ! nsrun ru systemctl start rdda-health.service; then
+  nsrun ru journalctl -u rdda-health.service --no-pager 2>&1 | tail -20 | sed 's/^/[ru-health] /' || true
+  die "rdda-health.service failed to send the beat"
+fi
 ok=no
 for _ in $(seq 1 10); do
   if nsrun eu bash -lc 'rdda status | grep -q "last beat"'; then ok=yes; break; fi
