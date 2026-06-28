@@ -63,10 +63,21 @@ curl -fsSL "${BASE}/SHA256SUMS"         -o "${TMP}/SHA256SUMS"
 install -m 0755 "${TMP}/rdda-linux-${ARCH}" "$BIN_DST"
 log "installed $($BIN_DST version) to $BIN_DST"
 
-# --- install xray-core, disable its stock unit ---
-log "installing xray-core"
-bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-systemctl disable --now xray.service 2>/dev/null || true
+# --- install sing-box (pinned) ---
+SINGBOX_VERSION="1.13.14"  # keep in sync with VERSION
+case "$ARCH" in
+  amd64) SINGBOX_SHA256="f48703461a15476951ac4967cdad339d986f4b8096b4eb3ff0829a500502d697";;
+  arm64) SINGBOX_SHA256="4742df6a4314e8ecc41736849fca6d73b8f9e91b6e8b06ee794ff17ba180579e";;
+esac
+SINGBOX_TARBALL="sing-box-${SINGBOX_VERSION}-linux-${ARCH}.tar.gz"
+log "installing sing-box ${SINGBOX_VERSION}"
+curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VERSION}/${SINGBOX_TARBALL}" \
+  -o "${TMP}/${SINGBOX_TARBALL}"
+echo "${SINGBOX_SHA256}  ${TMP}/${SINGBOX_TARBALL}" | sha256sum -c - \
+  || fail "sing-box checksum verification failed"
+tar -xzf "${TMP}/${SINGBOX_TARBALL}" -C "$TMP"
+install -m 0755 "${TMP}/sing-box-${SINGBOX_VERSION}-linux-${ARCH}/sing-box" /usr/local/bin/sing-box
+log "installed sing-box ${SINGBOX_VERSION}"
 
 # --- state dir + user ---
 mkdir -p "$STATE_DIR"; chmod 0700 "$STATE_DIR"
