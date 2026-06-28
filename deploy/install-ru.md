@@ -136,9 +136,9 @@ in `/etc/rdda/pull.env`), which is the EU node's `/ru/health` endpoint behind th
 Cloudflare tunnel. This anti-beacon jitter makes periodic health traffic
 indistinguishable from ordinary HTTPS noise.
 
-On the EU node, the beats appear in `rdda status` — a flat list of last-seen
-timestamps per RU node. If a node goes silent for >15 min, `rdda status` marks
-it degraded.
+On the EU node, the beats appear in `rdda status` — showing the RU node's last
+beat and its age (e.g. `✓ last beat 90s ago`). If the node goes silent for
+>20 min, `rdda status` marks it `STALE`.
 
 To inspect locally: `systemctl status rdda-health.timer` and
 `journalctl -u rdda-health.service`.
@@ -148,7 +148,7 @@ To inspect locally: `systemctl status rdda-health.timer` and
 The installer sets both of these up on the RU node automatically; this section
 explains what they are and how to tune/verify them.
 
-### 5.1 nfqws2 egress desync — **enabled by the installer**
+### 6.1 nfqws2 egress desync — **enabled by the installer**
 
 The RU node runs `nfqws2` (zapret2) to DPI-desync RDDA's **own** outbound TLS
 handshakes on port 443 (the RU→EU tunnel), so the entry node's egress is harder
@@ -167,7 +167,7 @@ rdda-nfqws`.
 - **Disable** (if it interferes on your route): `systemctl disable --now rdda-nfqws`.
   The tunnel keeps working without it.
 
-### 5.2 Local geoip-ru rule-set
+### 6.2 Local geoip-ru rule-set
 
 To split-route **domestic (RU) traffic direct** and tunnel only the rest, the RU
 sing-box uses a geoip-ru rule-set. It is a **local file** at
