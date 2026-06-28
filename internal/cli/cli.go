@@ -124,7 +124,7 @@ func newClientCmd(dir *string) *cobra.Command {
 
 	add := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Add a client and print its vless:// link",
+		Short: "Add a client and print its sing-box config",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := state.Open(*dir)
@@ -139,7 +139,11 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), subscription.ClientURI(cfg, c))
+			body, err := subscription.Build(cfg, c)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), body)
 			return nil
 		},
 	}

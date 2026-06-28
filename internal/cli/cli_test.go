@@ -42,15 +42,12 @@ func TestInitWritesConfig(t *testing.T) {
 	}
 }
 
-func TestClientAddPrintsVlessLink(t *testing.T) {
+func TestClientAddPrintsSingboxConfig(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
 	out := run(t, "--dir", dir, "client", "add", "granny")
-	if !strings.HasPrefix(strings.TrimSpace(out), "vless://") {
-		t.Fatalf("expected a vless:// link, got: %s", out)
-	}
-	if !strings.Contains(out, "ru.example.net") {
-		t.Fatalf("link should point at the RU host, got: %s", out)
+	if !strings.Contains(out, "\"outbounds\"") || !strings.Contains(out, "reality") {
+		t.Fatalf("expected a sing-box config, got: %s", out)
 	}
 }
 

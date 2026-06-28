@@ -1,45 +1,51 @@
-// Package subscription builds Hiddify/xray subscription bodies from RDDA state.
+// Package subscription builds the sing-box client config a Hiddify user imports.
 package subscription
 
 import (
-	"encoding/base64"
-	"fmt"
-	"net/url"
+	"encoding/json"
 
 	"github.com/KoRORland/rdda/internal/state"
 )
 
-// ClientURI returns a VLESS share link pointing at the RU entry node.
-func ClientURI(cfg state.Config, c state.Client) string {
-	q := url.Values{}
-	q.Set("type", "ws")
-	q.Set("host", cfg.RUHost)
-	q.Set("path", cfg.ClientPath)
-	q.Set("security", "reality")
-	q.Set("encryption", "none")
-	q.Set("pbk", cfg.ClientReality.PublicKey)
-	q.Set("sni", cfg.ClientReality.ServerName)
+type obj = map[string]any
+
+// ClientOutbound returns one sing-box VLESS/REALITY/multiplex outbound object
+// pointing at the RU entry node.
+func ClientOutbound(cfg state.Config, c state.Client) ([]byte, error) {
 	sid := ""
 	if len(cfg.ClientReality.ShortIDs) > 0 {
 		sid = cfg.ClientReality.ShortIDs[0]
 	}
-	q.Set("sid", sid)
-	q.Set("fp", cfg.FP())
-	u := url.URL{
-		Scheme:   "vless",
-		User:     url.User(c.UUID),
-		Host:     fmt.Sprintf("%s:%d", cfg.RUHost, cfg.RUPort),
-		RawQuery: q.Encode(),
-		Fragment: c.Name,
+	out := obj{
+		"type": "vless", "tag": "rdda",
+		"server": cfg.RUHost, "server_port": cfg.RUPort,
+		"uuid": c.UUID,
+		"tls": obj{
+			"enabled":     true,
+			"server_name": cfg.ClientReality.ServerName,
+			"utls":        obj{"enabled": true, "fingerprint": cfg.FP()},
+			"reality":     obj{"enabled": true, "public_key": cfg.ClientReality.PublicKey, "short_id": sid},
+		},
+		"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},
 	}
-	return u.String()
+	return json.MarshalIndent(out, "", "  ")
 }
 
-// Build returns the base64-encoded subscription body for a client.
-// The decoded body is a v2ray-style subscription: one URI per line, with a
-// leading comment reminding the operator to enable Mux/multiplex in Hiddify
-// (the bare vless link cannot carry mux settings).
-func Build(cfg state.Config, c state.Client) string {
-	body := "# enable Mux/multiplex in Hiddify settings\n" + ClientURI(cfg, c)
-	return base64.StdEncoding.EncodeToString([]byte(body))
+// Build returns the full sing-box client config (subscription body) for a client:
+// a TUN/SOCKS-less minimal config with the RDDA outbound + a direct fallback.
+func Build(cfg state.Config, c state.Client) (string, error) {
+	ob, err := ClientOutbound(cfg, c)
+	if err != nil {
+		return "", err
+	}
+	var out obj
+	if err := json.Unmarshal(ob, &out); err != nil {
+		return "", err
+	}
+	doc := obj{
+		"log":       obj{"level": "warn"},
+		"outbounds": []obj{out, {"type": "direct", "tag": "direct"}},
+	}
+	b, err := json.MarshalIndent(doc, "", "  ")
+	return string(b), err
 }
