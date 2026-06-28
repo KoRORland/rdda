@@ -39,9 +39,12 @@ safety. Hence the name.
 - **Doesn't snitch on itself.** The in-Russia node exposes no management surface and looks
   like a normal web server to anyone poking at it.
 
-> ⚠️ **Status: pre-release. This is MVP `v0.1` — actively under construction.**
-> Things will move, break, and occasionally work brilliantly. See
-> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
+> 🟢 **Status: `v0.2.0` released** — the Lane B **single sing-box** data plane
+> (VLESS + REALITY + multiplex on the inspected hop, VLESS + WebSocket over
+> Cloudflare), verified end-to-end by the multi-host integration harness.
+> Still young — expect rough edges. Latest build:
+> [**releases/v0.2.0**](https://github.com/KoRORland/rdda/releases/tag/v0.2.0).
+> See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
 ## How it works (the 30-second version)
 
@@ -61,6 +64,10 @@ Full design and rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## 🚀 Quickstart — Operators
 
 You need **two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
+
+The installer pulls the latest published release (currently **v0.2.0**, checksum-verified
+amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
+`--version v0.2.0` to either `bash -s --` line below.
 
 1. **EU node** (SSH is fine here):
    ```bash
