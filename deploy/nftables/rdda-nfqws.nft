@@ -1,0 +1,9 @@
+table inet rdda_nfqws {
+  chain postrouting {
+    type filter hook postrouting priority mangle; policy accept;
+    # Queue only the RU node's own outbound TLS handshakes for nfqws2 desync.
+    # queue-bypass = fail-open: if nfqws2 is down, packets pass unmodified.
+    meta l4proto tcp tcp dport 443 ct state new,established \
+      queue num 200 bypass
+  }
+}

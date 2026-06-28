@@ -1,0 +1,17 @@
+[Unit]
+Description=RDDA nfqws2 egress DPI-desync (RU node, fail-open)
+After=network-online.target rdda-singbox.service
+Wants=network-online.target
+
+[Service]
+# %E expands the desync flags rendered from config.yaml's desync.profile.
+ExecStartPre=/usr/sbin/nft -f /etc/rdda/rdda-nfqws.nft
+ExecStart=/usr/local/bin/nfqws2 --qnum=200 --dpi-desync=fake,split2
+ExecStopPost=-/usr/sbin/nft delete table inet rdda_nfqws
+Restart=on-failure
+RestartSec=3
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
