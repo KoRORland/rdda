@@ -19,7 +19,7 @@ only** (SSH closed). For ongoing maintenance, use the provider console — the n
 is designed to run hands-off (auto security updates + systemd restart-on-failure).
 (`--keep-ssh` leaves 22 open if you really need it during debugging.)
 
-See section 5 for what `rdda-nfqws` and the local geoip rule-set do.
+See section 6 for what `rdda-nfqws` and the local geoip rule-set do.
 
 ## 2. Install the config from the EU node
 
@@ -90,6 +90,7 @@ Then on the **RU** node (via the provider console):
     sudo tee /etc/rdda/pull.env > /dev/null <<'EOF'
     RDDA_PULL_FROM=https://<cf-sub-host>/ru/config
     RDDA_PULL_TOKEN=<pull_token from EU config.yaml>
+    RDDA_HEALTH_TO=https://<cf-sub-host>/ru/health
     EOF
     sudo chmod 600 /etc/rdda/pull.env
     sudo chown rdda:rdda /etc/rdda/pull.env
@@ -126,7 +127,23 @@ Trigger the first pull immediately and check its status:
 A successful run exits 0 and logs the fetch URL. The RU node no longer needs
 a manual `render ru` copy — the timer keeps `/etc/rdda/singbox.json` in sync.
 
-## 5. Egress DPI-desync (`rdda-nfqws`) and local geoip split-routing
+## 5. Health beat (`rdda-health.timer`) — enabled by the installer
+
+The installer enables `rdda-health.timer` on the RU node automatically. The timer
+fires at a **randomized interval (1–10 minutes, with random padding)** to avoid a
+predictable beacon signal: each beat sends a short POST to `RDDA_HEALTH_TO` (set
+in `/etc/rdda/pull.env`), which is the EU node's `/ru/health` endpoint behind the
+Cloudflare tunnel. This anti-beacon jitter makes periodic health traffic
+indistinguishable from ordinary HTTPS noise.
+
+On the EU node, the beats appear in `rdda status` — a flat list of last-seen
+timestamps per RU node. If a node goes silent for >15 min, `rdda status` marks
+it degraded.
+
+To inspect locally: `systemctl status rdda-health.timer` and
+`journalctl -u rdda-health.service`.
+
+## 6. Egress DPI-desync (`rdda-nfqws`) and local geoip split-routing
 
 The installer sets both of these up on the RU node automatically; this section
 explains what they are and how to tune/verify them.

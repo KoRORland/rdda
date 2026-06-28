@@ -130,7 +130,9 @@ if [ "$ROLE" = "eu" ]; then
   curl -fsSL "${RAW}/rdda-sub.service" -o "${UNIT_DIR}/rdda-sub.service"
 fi
 if [ "$ROLE" = "ru" ]; then
-  curl -fsSL "${RAW}/rdda-nfqws.service" -o "${UNIT_DIR}/rdda-nfqws.service"
+  curl -fsSL "${RAW}/rdda-nfqws.service"  -o "${UNIT_DIR}/rdda-nfqws.service"
+  curl -fsSL "${RAW}/rdda-health.service" -o "${UNIT_DIR}/rdda-health.service"
+  curl -fsSL "${RAW}/rdda-health.timer"   -o "${UNIT_DIR}/rdda-health.timer"
 fi
 systemctl daemon-reload
 log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
@@ -138,6 +140,7 @@ if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
   curl -fsSL "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
   systemctl enable --now rdda-nfqws
+  systemctl enable --now rdda-health.timer
 fi
 
 # --- host hardening (both roles) ---
