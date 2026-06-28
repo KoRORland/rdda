@@ -32,7 +32,10 @@ else
 fi
 
 log "5) pull-sync: a NEW client added on EU lands in RU's config"
-NEW_UUID="$(nsrun eu bash -lc 'rdda client add latecomer >/dev/null; jq -r .uuid /etc/rdda/clients/latecomer.json')"
+# `rdda client add` runs as root and writes clients/* root-owned 0600; the EU sub
+# server runs as the rdda user, so re-chown (the documented post-add prod step)
+# before it must serve the new client at /ru/config.
+NEW_UUID="$(nsrun eu bash -lc 'rdda client add latecomer >/dev/null; chown -R rdda:rdda /etc/rdda; jq -r .uuid /etc/rdda/clients/latecomer.json')"
 nsrun ru systemctl start rdda-pull.service
 ok=no
 for _ in $(seq 1 20); do
