@@ -85,13 +85,16 @@ if [ "$ROLE" = "ru" ]; then
   case "$ARCH" in
     amd64) ZARCH="x86_64";;
     arm64) ZARCH="arm64";;
+    *) fail "unsupported arch for nfqws2: ${ARCH}";;
   esac
   log "installing nfqws2 ${NFQWS2_VERSION}"
   curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/zapret-${NFQWS2_VERSION}.tar.gz" \
     -o "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz"
   curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/sha256sum.txt" \
     -o "${TMP}/sha256sum.txt"
-  grep "zapret-${NFQWS2_VERSION}.tar.gz" "${TMP}/sha256sum.txt" | sha256sum -c - \
+  NFQWS2_HASH="$(grep "zapret-${NFQWS2_VERSION}.tar.gz" "${TMP}/sha256sum.txt" | awk '{print $1}')"
+  [ -n "${NFQWS2_HASH}" ] || fail "nfqws2 hash not found in sha256sum.txt"
+  echo "${NFQWS2_HASH}  ${TMP}/zapret-${NFQWS2_VERSION}.tar.gz" | sha256sum -c - \
     || fail "nfqws2 checksum verification failed"
   TMP_NFQWS="${TMP}/nfqws_extract"
   mkdir -p "${TMP_NFQWS}"
