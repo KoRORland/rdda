@@ -9,7 +9,10 @@ Restart=on-failure
 RestartSec=3
 User=rdda
 Group=rdda
-ReadOnlyPaths=/etc/rdda
+# The sub server reads config/clients AND writes the last RU health beat
+# (ru-health.json) here, so /etc/rdda must be writable to it. OS perms
+# (0700, owned by rdda) still restrict the directory to this service.
+ReadWritePaths=/etc/rdda
 NoNewPrivileges=yes
 
 [Install]
