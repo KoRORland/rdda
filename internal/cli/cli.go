@@ -276,6 +276,26 @@ func newRenderCmd(dir *string) *cobra.Command {
 			return nil
 		},
 	})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "nfqws",
+		Short: "Print nfqws2 desync flags for the RU node",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			profile := cfg.Desync.Profile
+			if profile == "" {
+				profile = "fake,split2"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "--qnum=200 --dpi-desync=%s\n", profile)
+			return nil
+		},
+	})
 	return cmd
 }
 

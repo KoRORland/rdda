@@ -79,6 +79,30 @@ tar -xzf "${TMP}/${SINGBOX_TARBALL}" -C "$TMP"
 install -m 0755 "${TMP}/sing-box-${SINGBOX_VERSION}-linux-${ARCH}/sing-box" /usr/local/bin/sing-box
 log "installed sing-box ${SINGBOX_VERSION}"
 
+# --- nfqws2 binary (RU role only) ---
+if [ "$ROLE" = "ru" ]; then
+  NFQWS2_VERSION="v72.12"  # keep in sync with VERSION
+  case "$ARCH" in
+    amd64) ZARCH="x86_64";;
+    arm64) ZARCH="arm64";;
+  esac
+  log "installing nfqws2 ${NFQWS2_VERSION}"
+  curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/zapret-${NFQWS2_VERSION}.tar.gz" \
+    -o "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz"
+  curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/sha256sum.txt" \
+    -o "${TMP}/sha256sum.txt"
+  grep "zapret-${NFQWS2_VERSION}.tar.gz" "${TMP}/sha256sum.txt" | sha256sum -c - \
+    || fail "nfqws2 checksum verification failed"
+  TMP_NFQWS="${TMP}/nfqws_extract"
+  mkdir -p "${TMP_NFQWS}"
+  tar -xzf "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz" \
+    -C "${TMP_NFQWS}" \
+    --strip-components=3 \
+    "zapret-${NFQWS2_VERSION}/binaries/linux-${ZARCH}/nfqws"
+  install -m0755 "${TMP_NFQWS}/nfqws" /usr/local/bin/nfqws2
+  log "installed nfqws2 ${NFQWS2_VERSION}"
+fi
+
 # --- state dir + user ---
 mkdir -p "$STATE_DIR"; chmod 0700 "$STATE_DIR"
 id rdda >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin rdda
@@ -90,8 +114,16 @@ curl -fsSL "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"
 if [ "$ROLE" = "eu" ]; then
   curl -fsSL "${RAW}/rdda-sub.service" -o "${UNIT_DIR}/rdda-sub.service"
 fi
+if [ "$ROLE" = "ru" ]; then
+  curl -fsSL "${RAW}/rdda-nfqws.service" -o "${UNIT_DIR}/rdda-nfqws.service"
+fi
 systemctl daemon-reload
 log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
+if [ "$ROLE" = "ru" ]; then
+  RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
+  curl -fsSL "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
+  systemctl enable --now rdda-nfqws
+fi
 
 # --- host hardening (both roles) ---
 log "hardening host: time sync + unattended upgrades + firewall"

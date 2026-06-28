@@ -4,7 +4,7 @@ After=network-online.target rdda-singbox.service
 Wants=network-online.target
 
 [Service]
-# %E expands the desync flags rendered from config.yaml's desync.profile.
+# Desync flags default to fake,split2; run 'rdda render nfqws' to see the configured profile.
 ExecStartPre=/usr/sbin/nft -f /etc/rdda/rdda-nfqws.nft
 ExecStart=/usr/local/bin/nfqws2 --qnum=200 --dpi-desync=fake,split2
 ExecStopPost=-/usr/sbin/nft delete table inet rdda_nfqws

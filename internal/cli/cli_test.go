@@ -107,6 +107,16 @@ func TestInitSetsFingerprint(t *testing.T) {
 	}
 }
 
+func TestRenderNfqws(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru", "--eu-host", "eu")
+	// enable desync in config, then render
+	out := run(t, "--dir", dir, "render", "nfqws")
+	if !strings.Contains(out, "dpi-desync") {
+		t.Fatalf("render nfqws must emit desync flags: %s", out)
+	}
+}
+
 func TestVersionIsOverridable(t *testing.T) {
 	// Version must be a var (ldflags-injectable), defaulting to a non-empty string.
 	if Version == "" {
