@@ -35,11 +35,12 @@ mv /etc/rdda/singbox.json.new /etc/rdda/singbox.json
 chown -R rdda:rdda /etc/rdda
 systemctl daemon-reload
 systemctl enable --now rdda-singbox rdda-pull.timer
-# nfqws egress desync: enable it but tolerate failure. The nft rule is fail-open
-# (queue ... bypass), so the tunnel survives whether nfqws2 runs or not; NFQUEUE
-# may be restricted inside nspawn. The through-tunnel assertion then proves the
-# RU->EU handshake still completes with the desync active (or fail-open).
-systemctl enable --now rdda-nfqws || true
+# nfqws unit + nft are INSTALLED (deploy surface exercised) but intentionally NOT
+# enabled here. Confirmed in CI: nfqws2 runs fine under nspawn (NFQUEUE binds), but
+# the fake,split2 desync corrupts the RU->edge TLS handshake on this single-hop
+# bridge (the "fake" decoy packet, which in production dies via TTL before the real
+# dest, reaches the edge directly -> bad record mac). The desync is a real-internet
+# DPI-evasion feature; a 1-hop test topology cannot validate its runtime faithfully.
 INRU
 wait_active ru rdda-singbox
 log "ru provisioned"
