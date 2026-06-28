@@ -63,7 +63,10 @@ func dialReality(dest realityDest) error {
 	if err != nil {
 		return err
 	}
-	return conn.Close()
+	// A completed TLS 1.3 handshake means the dest is reachable; a Close() error
+	// must not flip that to "unreachable" (preserves the pre-refactor semantics).
+	_ = conn.Close()
+	return nil
 }
 
 func newCheckDestCmd() *cobra.Command {
