@@ -8,6 +8,13 @@ This is the high-level design. It deliberately favors **fewer moving parts, well
 maintained components, and observability** over cleverness. See `basic design layout.txt`
 for the original requirements seed.
 
+> **Implementation status — [`v0.2.0`](https://github.com/KoRORland/rdda/releases/tag/v0.2.0)
+> (Lane B).** The DPI-facing core is shipped and integration-gated: 2-hop sing-box data plane,
+> client onboarding, sub server, Cloudflare ingress, nfqws2 egress desync, and config pull-sync.
+> Not yet built (designed below, on the roadmap): health/auto-heal (`rdda-health.timer`),
+> alerting, the `status`/`update`/`backup`/`heal` CLI commands, RU failover, and key rotation.
+> Sections marked *(planned)* call out the gaps inline.
+
 ---
 
 ## 1. Platform scope
