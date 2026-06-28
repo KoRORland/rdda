@@ -9,4 +9,7 @@ EnvironmentFile=/etc/rdda/pull.env
 ExecStart=/usr/local/bin/rdda pull --from ${RDDA_PULL_FROM} --token ${RDDA_PULL_TOKEN}
 User=rdda
 Group=rdda
-NoNewPrivileges=yes
+# No NoNewPrivileges: the default --reload-cmd is `sudo systemctl reload-or-restart
+# rdda-singbox` (the rdda user is granted exactly that one command via
+# /etc/sudoers.d/rdda-reload). NoNewPrivileges=yes would block sudo's setuid
+# escalation, so the post-pull reload would fail and this oneshot would exit non-zero.
