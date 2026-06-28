@@ -1,7 +1,7 @@
 # RU node setup (Ubuntu 24.04)
 
 The RU node is the in-country entry point. It exposes **only port 443** and runs
-no management service. Its xray config is produced on the EU node and copied
+no management service. Its sing-box config is produced on the EU node and copied
 here.
 
 ## 1. Provision with the installer — from the VPS provider console
@@ -11,7 +11,7 @@ here.
 
     curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- ru
 
-This installs `rdda` + xray-core + the `rdda-xray` unit, hardens the host (time
+This installs `rdda` + sing-box + the `rdda-singbox` unit, hardens the host (time
 sync, automatic security updates), and locks the firewall to **443/tcp only**
 (SSH closed). For ongoing maintenance, use the provider console — the node is
 designed to run hands-off (auto security updates + systemd restart-on-failure).
@@ -23,17 +23,17 @@ On the **EU** node:
 
     rdda render ru
 
-Copy that output into this RU node's `/etc/rdda/xray.json` (paste it via the
+Copy that output into this RU node's `/etc/rdda/singbox.json` (paste it via the
 console, or use a one-time secure copy — there is no exposed management channel
 on the RU node, and automatic pull-sync is a v0.2 feature). Then:
 
     chown -R rdda:rdda /etc/rdda
-    systemctl enable --now rdda-xray
+    systemctl enable --now rdda-singbox
 
 ## 3. After client changes
 
 Whenever you add/remove clients on EU, re-run `rdda render ru` there and
-re-copy the output here, then `systemctl restart rdda-xray`.
+re-copy the output here, then `systemctl restart rdda-singbox`.
 
 In v0.2, client changes are propagated automatically via the pull-sync timer
 (see section 4 below) — no manual copy is needed.
@@ -41,7 +41,7 @@ In v0.2, client changes are propagated automatically via the pull-sync timer
 ## 4. Pull-sync (v0.2)
 
 The pull-sync timer runs `rdda pull` every ~5 minutes, fetching the latest
-xray config from the EU subscription endpoint and reloading xray if the config
+sing-box config from the EU subscription endpoint and reloading sing-box if the config
 changed. This replaces the manual `render ru` + copy workflow.
 
 ### 4.1 Write the pull environment file
@@ -62,14 +62,14 @@ Then on the **RU** node (via the provider console):
 Replace `<cf-sub-host>` with the Cloudflare sub hostname configured on the EU
 node (e.g. `sub.example.com`).
 
-### 4.2 Grant rdda permission to reload xray
+### 4.2 Grant rdda permission to reload sing-box
 
 The pull service runs as the `rdda` user but needs to call
-`systemctl reload-or-restart rdda-xray` after a config change. Create a
+`systemctl reload-or-restart rdda-singbox` after a config change. Create a
 sudoers drop-in:
 
     sudo tee /etc/sudoers.d/rdda-reload > /dev/null <<'EOF'
-    rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-xray
+    rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-singbox
     EOF
     sudo chmod 440 /etc/sudoers.d/rdda-reload
     sudo visudo -c   # validate syntax
@@ -89,4 +89,4 @@ Trigger the first pull immediately and check its status:
     sudo systemctl status rdda-pull.service
 
 A successful run exits 0 and logs the fetch URL. The RU node no longer needs
-a manual `render ru` copy — the timer keeps `/etc/rdda/xray.json` in sync.
+a manual `render ru` copy — the timer keeps `/etc/rdda/singbox.json` in sync.

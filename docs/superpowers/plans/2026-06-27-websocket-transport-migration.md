@@ -1,5 +1,7 @@
 # WebSocket Transport Migration Implementation Plan
 
+> **SUPERSEDED 2026-06-27 by docs/superpowers/plans/2026-06-27-lane-b-singbox-migration.md (Lane B).** Do not execute. Lane B migrated both nodes to a single sing-box data plane (VLESS+REALITY+multiplex on the inspected hop, VLESS+WebSocket+TLS+multiplex over Cloudflare), which subsumes and replaces this xray-WS approach.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move RDDA's transport from XHTTP (xray-only) to **VLESS + WebSocket + mux** so a real **Hiddify (sing-box)** client can connect, while still defeating the June-2026 three-signal DPI scheme.

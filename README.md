@@ -66,16 +66,16 @@ You need **two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
    ```bash
    curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- eu
    rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
-   rdda render eu > /etc/rdda/xray.json
-   chown -R rdda:rdda /etc/rdda && systemctl enable --now rdda-xray
+   rdda render eu > /etc/rdda/singbox.json
+   chown -R rdda:rdda /etc/rdda && systemctl enable --now rdda-singbox
    ```
 2. **RU node** (run from your VPS provider **console** — the installer closes SSH):
    ```bash
    curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- ru
    ```
    Then, on EU, `rdda render ru` and copy the output to the RU node's
-   `/etc/rdda/xray.json`; on RU `systemctl enable --now rdda-xray`.
-3. **Add a friend** (on EU) and send them the printed `vless://` link privately:
+   `/etc/rdda/singbox.json`; on RU `systemctl enable --now rdda-singbox`.
+3. **Add a friend** (on EU) and send them the printed sing-box config privately:
    ```bash
    rdda client add aunt-olga
    ```
@@ -85,7 +85,7 @@ See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](
 ## 📱 Quickstart — Clients (your friends & family)
 
 1. Install **Hiddify** ([hiddify.com](https://hiddify.com)) — Android, Windows, or Linux.
-2. Paste the link the operator sent you (it starts with `vless://`) into Hiddify as a **new profile/config**.
+2. Paste the sing-box config the operator sent you into Hiddify as a **new profile/config**.
 3. Hit **Connect**. That's it.
 
 ---

@@ -164,7 +164,7 @@ if [ "$ROLE" = "eu" ]; then
   2. rdda render eu > /etc/rdda/singbox.json
   3. chown -R rdda:rdda /etc/rdda
   4. systemctl enable --now rdda-singbox
-  5. rdda client add <name>   # send the printed vless:// link privately
+  5. rdda client add <name>   # send the printed sing-box config privately
   (RU config: run `rdda render ru` and copy the output to the RU node.)
 EOF
 else

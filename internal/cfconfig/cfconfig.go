@@ -9,7 +9,7 @@ import (
 )
 
 // Render returns a cloudflared config.yml that routes the data-hop hostname to
-// the local sing-box XHTTP inbound and the subscription hostname to the local
+// the local sing-box WebSocket inbound and the subscription hostname to the local
 // subscription server. subPort is the loopback port the sub server listens on.
 func Render(cfg state.Config, subPort int) ([]byte, error) {
 	if !cfg.CFEnabled() || cfg.Cloudflare.TunnelID == "" {
