@@ -54,6 +54,17 @@ re-run `rdda init --client-sni <host> …` and `rdda render ru` on EU, re-copy t
 config here, and start again. The dest must support TLS 1.3 (the REALITY
 requirement) and ideally be a high-collateral site RKN is unlikely to block.
 
+**Soft mode (advisory, non-blocking).** To warn but start anyway — e.g. to tolerate
+a transient dest outage — add `--warn` to the check via a systemd drop-in:
+
+    systemctl edit rdda-singbox      # add the two lines below, then save
+    # [Service]
+    # ExecStartPre=
+    # ExecStartPre=/usr/local/bin/rdda check-dest -c /etc/rdda/singbox.json --warn
+
+The first empty `ExecStartPre=` clears the strict check; the second re-adds it in
+`--warn` mode (logs a warning to the journal and lets sing-box start).
+
 ## 3. After client changes
 
 Whenever you add/remove clients on EU, re-run `rdda render ru` there and

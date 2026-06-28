@@ -56,6 +56,7 @@ func extractRealityDest(cfgJSON []byte) (realityDest, bool) {
 
 func newCheckDestCmd() *cobra.Command {
 	var cfgPath string
+	var warn bool
 	cmd := &cobra.Command{
 		Use:   "check-dest",
 		Short: "Verify this node can reach the REALITY handshake dest (TLS 1.3) in its sing-box config",
@@ -84,10 +85,16 @@ func newCheckDestCmd() *cobra.Command {
 				&tls.Config{ServerName: dest.host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec
 			)
 			if err != nil {
-				return fmt.Errorf("REALITY dest %s is not reachable via TLS 1.3 from this node: %w\n"+
+				failErr := fmt.Errorf("REALITY dest %s is not reachable via TLS 1.3 from this node: %w\n"+
 					"  the inspected hop sends SNI %q and this node relays the handshake there;\n"+
 					"  choose a --client-sni reachable AND unblocked from here, then re-render the config",
 					addr, err, dest.host)
+				if warn {
+					// Soft mode: surface the problem but let the data plane start anyway.
+					fmt.Fprintf(cmd.ErrOrStderr(), "check-dest WARNING: %v\n", failErr)
+					return nil
+				}
+				return failErr
 			}
 			_ = conn.Close()
 			fmt.Fprintf(cmd.OutOrStdout(), "check-dest: REALITY dest %s reachable (TLS 1.3) OK\n", addr)
@@ -95,5 +102,6 @@ func newCheckDestCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "/etc/rdda/singbox.json", "sing-box config to read the REALITY dest from")
+	cmd.Flags().BoolVar(&warn, "warn", false, "soft mode: log a warning and exit 0 instead of failing when the dest is unreachable")
 	return cmd
 }
