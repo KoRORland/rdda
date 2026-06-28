@@ -1,0 +1,13 @@
+[Unit]
+Description=RDDA RU health beat timer (randomized 1-10 min, anti-beacon)
+
+[Timer]
+# Each firing lands uniformly in [60s, 600s] after the last; Persistent=false so a
+# node that was off does NOT emit a catch-up burst (which would itself be a beacon).
+OnBootSec=2min
+OnUnitActiveSec=60
+RandomizedDelaySec=540
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=RDDA RU health beat (one-shot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/rdda/pull.env
+ExecStart=/usr/local/bin/rdda health --to ${RDDA_HEALTH_TO} --token ${RDDA_PULL_TOKEN}
+User=rdda
+Group=rdda
