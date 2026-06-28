@@ -121,10 +121,23 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 
 	rules := []obj{
 		{"ip_is_private": true, "outbound": "direct"},
-		{"rule_set": "geoip-ru", "outbound": "direct"},
+	}
+	// geoip-ru split routing is OFF unless a LOCAL rule-set path is configured. A
+	// local .srs (shipped at install time) means the RU data plane never blocks
+	// startup on a remote download — sing-box fetches a remote rule_set (blocking)
+	// at router init and FATALs if it cannot reach it, a poor dependency for an
+	// anti-censorship entry node. Empty path = tunnel everything (safe, less efficient).
+	if cfg.GeoIPPath != "" {
+		rules = append(rules, obj{"rule_set": "geoip-ru", "outbound": "direct"})
 	}
 	if len(cfg.IntlAllowDomains) > 0 {
 		rules = append(rules, obj{"domain_suffix": cfg.IntlAllowDomains, "outbound": "direct"})
+	}
+	route := obj{"rules": rules, "final": "proxy"}
+	if cfg.GeoIPPath != "" {
+		route["rule_set"] = []obj{{
+			"type": "local", "tag": "geoip-ru", "format": "binary", "path": cfg.GeoIPPath,
+		}}
 	}
 	doc := obj{
 		"log":      obj{"level": "warn"},
@@ -133,15 +146,7 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 			proxy,
 			{"type": "direct", "tag": "direct"},
 		},
-		"route": obj{
-			"rule_set": []obj{{
-				"type": "remote", "tag": "geoip-ru", "format": "binary",
-				"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs",
-				"download_detour": "proxy",
-			}},
-			"rules": rules,
-			"final": "proxy",
-		},
+		"route": route,
 	}
 	return json.MarshalIndent(doc, "", "  ")
 }

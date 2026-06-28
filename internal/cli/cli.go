@@ -47,7 +47,7 @@ func newRoot() *cobra.Command {
 func newInitCmd(dir *string) *cobra.Command {
 	var ruHost, euHost, clientSNI, tunnelSNI string
 	var cfTunnelHost, cfSubHost, cfTunnelID, cfCredsFile string
-	var fp string
+	var fp, geoipPath string
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate keys and write config.yaml",
@@ -82,6 +82,7 @@ func newInitCmd(dir *string) *cobra.Command {
 				ClientPath: "/cl", TunnelPath: "/tn",
 				TunnelUUID: keys.NewUUID(),
 				SubBaseURL: "https://" + euHost,
+				GeoIPPath:  geoipPath,
 				ClientReality: state.Reality{
 					Target: clientSNI + ":443", ServerName: clientSNI,
 					PrivateKey: cr.PrivateKey, PublicKey: cr.PublicKey, ShortIDs: []string{csid},
@@ -109,6 +110,7 @@ func newInitCmd(dir *string) *cobra.Command {
 	cmd.Flags().StringVar(&euHost, "eu-host", "", "EU node public host/IP (required)")
 	cmd.Flags().StringVar(&clientSNI, "client-sni", "www.apple.com", "REALITY SNI for client→RU hop")
 	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "www.apple.com", "REALITY SNI for RU→EU hop")
+	cmd.Flags().StringVar(&geoipPath, "geoip-path", "/etc/rdda/geoip-ru.srs", "RU local geoip-ru rule-set path for domestic split-routing (empty to disable)")
 	_ = cmd.MarkFlagRequired("ru-host")
 	_ = cmd.MarkFlagRequired("eu-host")
 	cmd.Flags().StringVar(&cfTunnelHost, "cf-tunnel-host", "", "Cloudflare hostname for the RU→EU data hop (optional; enables CF fronting)")

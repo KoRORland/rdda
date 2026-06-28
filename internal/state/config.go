@@ -46,6 +46,12 @@ type Config struct {
 	TunnelUUID       string     `yaml:"tunnel_uuid"`
 	SubBaseURL       string     `yaml:"sub_base_url"`
 	IntlAllowDomains []string   `yaml:"intl_allow_domains"`
+	// GeoIPPath is the local path to the geoip-ru rule-set (.srs) on the RU node.
+	// When set, RU split-routes domestic (RU) IPs direct and tunnels the rest. It
+	// is a LOCAL file (shipped at install time) so the RU data plane never blocks
+	// startup on a remote download. Empty disables geoip split-routing (all
+	// traffic goes through the EU tunnel — safe, just less efficient).
+	GeoIPPath string `yaml:"geoip_path"`
 	ClientReality    Reality    `yaml:"client_reality"`
 	TunnelReality    Reality    `yaml:"tunnel_reality"`
 	Cloudflare       Cloudflare `yaml:"cloudflare"`

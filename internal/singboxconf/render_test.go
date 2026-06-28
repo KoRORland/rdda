@@ -117,6 +117,56 @@ func TestRenderRU_NonCF(t *testing.T) {
 	mustCheck(t, b)
 }
 
+func TestRenderRU_GeoIPLocal(t *testing.T) {
+	c := ruCfg(true)
+	c.GeoIPPath = "/etc/rdda/geoip-ru.srs"
+	b, err := RenderRU(c, []state.Client{{UUID: "uuid-1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	_ = json.Unmarshal(b, &doc)
+	route := doc["route"].(map[string]any)
+	rs, ok := route["rule_set"].([]any)
+	if !ok || len(rs) == 0 {
+		t.Fatalf("expected a geoip rule_set when GeoIPPath is set: %v", route)
+	}
+	first := rs[0].(map[string]any)
+	if first["type"] != "local" || first["path"] != "/etc/rdda/geoip-ru.srs" {
+		t.Fatalf("geoip-ru must be a LOCAL rule-set at the configured path (no remote boot dependency): %v", first)
+	}
+	found := false
+	for _, r := range route["rules"].([]any) {
+		if r.(map[string]any)["rule_set"] == "geoip-ru" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("geoip-ru rule-set defined but no rule routes it to direct")
+	}
+	// No mustCheck: sing-box check opens the local .srs and FATALs if absent; the
+	// file ships at install time and is exercised in the integration harness.
+}
+
+func TestRenderRU_NoGeoIP(t *testing.T) {
+	b, err := RenderRU(ruCfg(true), []state.Client{{UUID: "uuid-1"}}) // GeoIPPath unset
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	_ = json.Unmarshal(b, &doc)
+	route := doc["route"].(map[string]any)
+	if _, ok := route["rule_set"]; ok {
+		t.Fatal("with no GeoIPPath, RU config must carry no rule_set (no boot-download dependency)")
+	}
+	for _, r := range route["rules"].([]any) {
+		if r.(map[string]any)["rule_set"] == "geoip-ru" {
+			t.Fatal("with no GeoIPPath, no rule may reference geoip-ru")
+		}
+	}
+	mustCheck(t, b)
+}
+
 func TestRenderEU_CF(t *testing.T) {
 	b, _ := RenderEU(ruCfg(true))
 	var doc map[string]any

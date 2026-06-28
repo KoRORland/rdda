@@ -32,6 +32,10 @@ chmod 440 /etc/sudoers.d/rdda-reload
 rdda pull --from https://sub.rdda.test/ru/config --token ${TOKEN} --reload-cmd true
 jq '.log.level = "debug"' /etc/rdda/singbox.json > /etc/rdda/singbox.json.new
 mv /etc/rdda/singbox.json.new /etc/rdda/singbox.json
+# Local geoip-ru rule-set at the rendered geoip_path (the prod installer fetches
+# this; here it ships in the image). Proves the RU sing-box starts from a LOCAL
+# .srs with no remote rule_set download at boot.
+install -D -m0644 /usr/local/share/geoip-ru.srs /etc/rdda/geoip-ru.srs
 chown -R rdda:rdda /etc/rdda
 systemctl daemon-reload
 systemctl enable --now rdda-singbox rdda-pull.timer

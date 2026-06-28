@@ -25,6 +25,10 @@ NFQWS2_VER=v72.12
 curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VER}/zapret-${NFQWS2_VER}.tar.gz" -o /tmp/zapret.tgz
 tar -xzf /tmp/zapret.tgz -C /tmp "zapret-${NFQWS2_VER}/binaries/linux-x86_64/nfqws"
 install -m0755 "/tmp/zapret-${NFQWS2_VER}/binaries/linux-x86_64/nfqws" "$BASE/usr/local/bin/nfqws2"
+# geoip-ru rule-set: shipped as a LOCAL .srs (the prod installer does the same),
+# so the RU sing-box starts from a local file with no remote rule_set download.
+# provision-ru copies it into /etc/rdda/geoip-ru.srs (the rendered RU config path).
+curl -fsSL "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs" -o "$BASE/usr/local/share/geoip-ru.srs"
 # chisel (reverse-tunnel stand-in for cloudflared). Pin the version: the asset
 # name is versioned, and resolving via api.github.com hits the unauthenticated
 # rate limit (403) on shared CI runner IPs. Direct release-CDN download instead.

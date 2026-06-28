@@ -111,6 +111,18 @@ mkdir -p "$STATE_DIR"; chmod 0700 "$STATE_DIR"
 id rdda >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin rdda
 log "state dir $STATE_DIR ready; rdda user present"
 
+# --- geoip-ru rule-set (RU role only): a LOCAL .srs so the RU sing-box never
+# blocks startup on a remote download. Fetched here at install time (github is
+# already required above for sing-box/nfqws); the rendered RU config points at it
+# via geoip_path. Update it by re-running the installer.
+if [ "$ROLE" = "ru" ]; then
+  log "installing geoip-ru rule-set (local split-routing data)"
+  curl -fsSL "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs" \
+    -o "${STATE_DIR}/geoip-ru.srs" || fail "could not download geoip-ru.srs"
+  chown rdda:rdda "${STATE_DIR}/geoip-ru.srs"
+  chmod 0644 "${STATE_DIR}/geoip-ru.srs"
+fi
+
 # --- systemd units (fetched at the resolved tag to match the binary) ---
 RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/systemd"
 curl -fsSL "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"

@@ -11,11 +11,15 @@ here.
 
     curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- ru
 
-This installs `rdda` + sing-box + the `rdda-singbox` unit, hardens the host (time
-sync, automatic security updates), and locks the firewall to **443/tcp only**
-(SSH closed). For ongoing maintenance, use the provider console — the node is
-designed to run hands-off (auto security updates + systemd restart-on-failure).
+This installs `rdda` + sing-box + the `rdda-singbox` unit, **plus the RU-only
+egress DPI-desync** (`nfqws2` + the `rdda-nfqws` unit, **enabled automatically**)
+and a **local `geoip-ru.srs`** rule-set at `/etc/rdda/geoip-ru.srs`. It hardens the
+host (time sync, automatic security updates) and locks the firewall to **443/tcp
+only** (SSH closed). For ongoing maintenance, use the provider console — the node
+is designed to run hands-off (auto security updates + systemd restart-on-failure).
 (`--keep-ssh` leaves 22 open if you really need it during debugging.)
+
+See section 5 for what `rdda-nfqws` and the local geoip rule-set do.
 
 ## 2. Install the config from the EU node
 
@@ -90,3 +94,43 @@ Trigger the first pull immediately and check its status:
 
 A successful run exits 0 and logs the fetch URL. The RU node no longer needs
 a manual `render ru` copy — the timer keeps `/etc/rdda/singbox.json` in sync.
+
+## 5. Egress DPI-desync (`rdda-nfqws`) and local geoip split-routing
+
+The installer sets both of these up on the RU node automatically; this section
+explains what they are and how to tune/verify them.
+
+### 5.1 nfqws2 egress desync — **enabled by the installer**
+
+The RU node runs `nfqws2` (zapret2) to DPI-desync RDDA's **own** outbound TLS
+handshakes on port 443 (the RU→EU tunnel), so the entry node's egress is harder
+to fingerprint. The installer downloads `nfqws2`, installs `rdda-nfqws.service`
++ the nftables hook `/etc/rdda/rdda-nfqws.nft`, and runs `systemctl enable --now
+rdda-nfqws`.
+
+- **Fail-open by design.** The nft rule uses `queue ... bypass`: if `nfqws2` is
+  down, packets pass through unmodified, so a desync failure never breaks the
+  tunnel. (A *misconfigured* desync profile that the path rejects is a different
+  matter — pick a profile compatible with your network.)
+- **Profile.** The default desync strategy is `fake,split2`. The configured
+  strategy is shown by `rdda render nfqws` (it reads the `desync:` block of
+  `config.yaml`).
+- **Verify:** `systemctl status rdda-nfqws` and `journalctl -u rdda-nfqws`.
+- **Disable** (if it interferes on your route): `systemctl disable --now rdda-nfqws`.
+  The tunnel keeps working without it.
+
+### 5.2 Local geoip-ru rule-set
+
+To split-route **domestic (RU) traffic direct** and tunnel only the rest, the RU
+sing-box uses a geoip-ru rule-set. It is a **local file** at
+`/etc/rdda/geoip-ru.srs` (the rendered config's `geoip_path`), fetched by the
+installer at install time — **not** a remote rule-set. This matters: sing-box
+downloads a *remote* rule-set (blocking) at startup and fails to start if it
+cannot reach it, a poor dependency for a censored entry node. A local file means
+the data plane always starts offline.
+
+- **Update it:** re-run the installer, or refresh the file:
+  `curl -fsSL https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs -o /etc/rdda/geoip-ru.srs && systemctl reload-or-restart rdda-singbox`.
+- **Disable split-routing** (tunnel everything — safe, less efficient): on the EU
+  node, `rdda init … --geoip-path ""` and re-render; the RU config then carries no
+  rule-set and needs no `.srs` file.
