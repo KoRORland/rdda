@@ -19,7 +19,7 @@ func TestPullCommand_WritesDest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	dest := filepath.Join(t.TempDir(), "xray.json")
+	dest := filepath.Join(t.TempDir(), "singbox.json")
 	root := newRoot()
 	root.SetArgs([]string{"pull", "--from", srv.URL + "/ru/config", "--token", "tok", "--dest", dest, "--reload-cmd", "true"})
 	var out bytes.Buffer

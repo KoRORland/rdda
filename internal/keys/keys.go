@@ -1,4 +1,4 @@
-// Package keys generates the cryptographic identities RDDA hands to xray-core.
+// Package keys generates the cryptographic identities RDDA hands to sing-box.
 package keys
 
 import (
@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
-// NewUUID returns a random RFC-4122 v4 UUID string (xray client id).
+// NewUUID returns a random RFC-4122 v4 UUID string (sing-box client id).
 func NewUUID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -39,7 +39,7 @@ func NewToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b[:]), nil
 }
 
-// X25519Keypair holds base64 raw-url-encoded REALITY keys, matching `xray x25519`.
+// X25519Keypair holds base64 raw-url-encoded REALITY keys for sing-box.
 type X25519Keypair struct {
 	PrivateKey string
 	PublicKey  string

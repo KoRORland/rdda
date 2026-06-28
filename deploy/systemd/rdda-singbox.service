@@ -1,0 +1,16 @@
+[Unit]
+Description=RDDA sing-box data plane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/sing-box run -c /etc/rdda/singbox.json
+Restart=on-failure
+RestartSec=3
+User=rdda
+Group=rdda
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -18,7 +18,7 @@ func TestRun_WritesAtomicallyAndReloads(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	dest := filepath.Join(t.TempDir(), "xray.json")
+	dest := filepath.Join(t.TempDir(), "singbox.json")
 	reloaded := false
 	err := Run(Options{URL: srv.URL + "/ru/config", Token: "tok", Dest: dest,
 		Reload: func() error { reloaded = true; return nil }})
@@ -40,7 +40,7 @@ func TestRun_FetchFailureLeavesDestUntouched(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	dest := filepath.Join(t.TempDir(), "xray.json")
+	dest := filepath.Join(t.TempDir(), "singbox.json")
 	if err := os.WriteFile(dest, []byte("OLD"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestRun_RejectsNonJSON(t *testing.T) {
 		_, _ = w.Write([]byte("not json"))
 	}))
 	defer srv.Close()
-	dest := filepath.Join(t.TempDir(), "xray.json")
+	dest := filepath.Join(t.TempDir(), "singbox.json")
 	if err := Run(Options{URL: srv.URL, Token: "x", Dest: dest}); err == nil {
 		t.Fatal("expected error on non-JSON body")
 	}

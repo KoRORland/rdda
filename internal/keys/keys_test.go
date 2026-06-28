@@ -46,7 +46,7 @@ func TestNewX25519Keypair(t *testing.T) {
 	if kp.PrivateKey == "" || kp.PublicKey == "" {
 		t.Fatal("empty key")
 	}
-	// xray uses base64 raw-url encoding of 32-byte keys.
+	// sing-box uses base64 raw-url encoding of 32-byte keys.
 	priv, err := base64.RawURLEncoding.DecodeString(kp.PrivateKey)
 	if err != nil || len(priv) != 32 {
 		t.Fatalf("private key not 32 raw-url bytes: %v len=%d", err, len(priv))

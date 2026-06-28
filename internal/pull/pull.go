@@ -1,4 +1,4 @@
-// Package pull fetches the RU node's desired xray config from the EU node
+// Package pull fetches the RU node's desired sing-box config from the EU node
 // (over Cloudflare) and atomically installs it. A fetch failure leaves the
 // existing config in place — the node never fails open.
 package pull
@@ -18,7 +18,7 @@ import (
 type Options struct {
 	URL    string       // EU /ru/config endpoint (no query string)
 	Token  string       // pull token
-	Dest   string       // path to write the rendered xray config
+	Dest   string       // path to write the rendered sing-box config
 	Client *http.Client // optional; defaults to a 30s-timeout client
 	Reload func() error // optional; called after a successful swap
 }
@@ -55,7 +55,7 @@ func Run(opts Options) error {
 	}
 
 	dir := filepath.Dir(opts.Dest)
-	tmp, err := os.CreateTemp(dir, ".xray-*.json")
+	tmp, err := os.CreateTemp(dir, ".singbox-*.json")
 	if err != nil {
 		return fmt.Errorf("pull temp file: %w", err)
 	}

@@ -75,7 +75,7 @@ log "state dir $STATE_DIR ready; rdda user present"
 
 # --- systemd units (fetched at the resolved tag to match the binary) ---
 RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/systemd"
-curl -fsSL "${RAW}/rdda-xray.service" -o "${UNIT_DIR}/rdda-xray.service"
+curl -fsSL "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"
 if [ "$ROLE" = "eu" ]; then
   curl -fsSL "${RAW}/rdda-sub.service" -o "${UNIT_DIR}/rdda-sub.service"
 fi
@@ -115,17 +115,17 @@ EOF
 if [ "$ROLE" = "eu" ]; then
   cat <<'EOF'
   1. rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
-  2. rdda render eu > /etc/rdda/xray.json
+  2. rdda render eu > /etc/rdda/singbox.json
   3. chown -R rdda:rdda /etc/rdda
-  4. systemctl enable --now rdda-xray
+  4. systemctl enable --now rdda-singbox
   5. rdda client add <name>   # send the printed vless:// link privately
   (RU config: run `rdda render ru` and copy the output to the RU node.)
 EOF
 else
   cat <<'EOF'
   1. On the EU node, run: rdda render ru
-  2. Copy that output to this RU node's /etc/rdda/xray.json
+  2. Copy that output to this RU node's /etc/rdda/singbox.json
   3. chown -R rdda:rdda /etc/rdda
-  4. systemctl enable --now rdda-xray
+  4. systemctl enable --now rdda-singbox
 EOF
 fi

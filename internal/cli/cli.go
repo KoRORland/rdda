@@ -301,7 +301,7 @@ func newPullCmd() *cobra.Command {
 	var from, token, dest, reloadCmd string
 	cmd := &cobra.Command{
 		Use:   "pull",
-		Short: "Pull the RU xray config from EU (over Cloudflare) and reload",
+		Short: "Pull the RU sing-box config from EU (over Cloudflare) and reload",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if from == "" || token == "" {
 				return fmt.Errorf("--from and --token are required")
@@ -322,8 +322,8 @@ func newPullCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&from, "from", "", "EU /ru/config URL (required)")
 	cmd.Flags().StringVar(&token, "token", "", "pull token (required)")
-	cmd.Flags().StringVar(&dest, "dest", "/etc/rdda/xray.json", "destination xray config path")
-	cmd.Flags().StringVar(&reloadCmd, "reload-cmd", "sudo systemctl reload-or-restart rdda-xray", "command run after a successful pull")
+	cmd.Flags().StringVar(&dest, "dest", "/etc/rdda/singbox.json", "destination sing-box config path")
+	cmd.Flags().StringVar(&reloadCmd, "reload-cmd", "sudo systemctl reload-or-restart rdda-singbox", "command run after a successful pull")
 	return cmd
 }
 
