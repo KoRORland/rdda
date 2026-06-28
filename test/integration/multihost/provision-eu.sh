@@ -13,13 +13,13 @@ nsrun eu rdda init --ru-host ru --eu-host eu \
   --cf-tunnel-id testtunnel --cf-credentials-file /etc/cloudflared/test.json
 nsrun eu bash -eus <<'INEU'
 rdda client add tester >/dev/null
-rdda render eu > /etc/rdda/xray.json
+rdda render eu > /etc/rdda/singbox.json
 chown -R rdda:rdda /etc/rdda
 chmod 700 /etc/rdda
 INEU
 
-log "install the REAL rdda-xray unit (reads /etc/rdda/xray.json, loopback under CF)"
-install -m0644 "$REPO_ROOT/deploy/systemd/rdda-xray.service" "$root/etc/systemd/system/rdda-xray.service"
+log "install the REAL rdda-singbox unit (reads /etc/rdda/singbox.json, loopback under CF)"
+install -m0644 "$REPO_ROOT/deploy/systemd/rdda-singbox.service" "$root/etc/systemd/system/rdda-singbox.service"
 install -m0644 "$REPO_ROOT/deploy/systemd/rdda-sub.service"  "$root/etc/systemd/system/rdda-sub.service"
 
 log "cloudflared stand-in: chisel client reverse-forwards EU loopback to edge"
@@ -34,14 +34,17 @@ Restart=on-failure
 WantedBy=multi-user.target
 UNIT
 
-# Pin EU xray + sub to the loopback ports the edge forwards (8443/8080).
+# Pin the EU sing-box CF inbound to the loopback port the edge/chisel forwards
+# (8443); init hardcodes EUPort=443. Bump log to debug for diagnosis.
 nsrun eu bash -eus <<'INEU'
-sed -i 's#"port": 443#"port": 8443#' /etc/rdda/xray.json
-sed -i 's#"loglevel": "warning"#"loglevel": "debug"#' /etc/rdda/xray.json
+tmp="$(mktemp)"
+jq '.inbounds[0].listen_port = 8443 | .log.level = "debug"' /etc/rdda/singbox.json > "$tmp"
+mv "$tmp" /etc/rdda/singbox.json
+chown rdda:rdda /etc/rdda/singbox.json
 systemctl daemon-reload
-systemctl enable --now rdda-xray rdda-sub cloudflared
+systemctl enable --now rdda-singbox rdda-sub cloudflared
 INEU
-wait_active eu rdda-xray
+wait_active eu rdda-singbox
 wait_active eu rdda-sub
 wait_active eu cloudflared
 log "eu provisioned"

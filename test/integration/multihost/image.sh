@@ -13,15 +13,18 @@ rm -rf "$BASE"; mkdir -p "$BASE"
 debootstrap --include=systemd,systemd-sysv,dbus,nginx,curl,jq,ca-certificates,openssl,iproute2,sudo \
   stable "$BASE" http://deb.debian.org/debian
 
-log "build rdda and install xray + chisel into base"
+log "build rdda and install sing-box + nfqws2 + chisel into base"
 ( cd "$REPO_ROOT" && go build -o "$BASE/usr/local/bin/rdda" ./cmd/rdda )
-# xray-core
-curl -fsSL https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -o /tmp/xray.zip
-( cd /tmp && rm -rf xray && mkdir xray && cd xray && { jar xf /tmp/xray.zip 2>/dev/null || unzip -o /tmp/xray.zip; } )
-install -m0755 /tmp/xray/xray "$BASE/usr/local/bin/xray"
-# RU/client configs use geoip routing (geoip:private, geoip:ru); xray needs the
-# data files next to the binary or it fails to build routing. They ship in the zip.
-install -m0644 /tmp/xray/geoip.dat /tmp/xray/geosite.dat "$BASE/usr/local/bin/"
+# sing-box (pinned; matches VERSION/install.sh). The base host build has egress.
+SB_VER=1.13.14
+curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SB_VER}/sing-box-${SB_VER}-linux-amd64.tar.gz" -o /tmp/sb.tgz
+tar -xzf /tmp/sb.tgz -C /tmp
+install -m0755 "/tmp/sing-box-${SB_VER}-linux-amd64/sing-box" "$BASE/usr/local/bin/sing-box"
+# nfqws2 (zapret prebuilt; matches VERSION/install.sh). RU desync egress.
+NFQWS2_VER=v72.12
+curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VER}/zapret-${NFQWS2_VER}.tar.gz" -o /tmp/zapret.tgz
+tar -xzf /tmp/zapret.tgz -C /tmp "zapret-${NFQWS2_VER}/binaries/linux-x86_64/nfqws"
+install -m0755 "/tmp/zapret-${NFQWS2_VER}/binaries/linux-x86_64/nfqws" "$BASE/usr/local/bin/nfqws2"
 # chisel (reverse-tunnel stand-in for cloudflared). Pin the version: the asset
 # name is versioned, and resolving via api.github.com hits the unauthenticated
 # rate limit (403) on shared CI runner IPs. Direct release-CDN download instead.

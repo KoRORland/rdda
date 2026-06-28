@@ -7,15 +7,17 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../../.." && pwd)"
 root=/var/lib/machines/rdda-ru
 
-log "install real rdda-xray + pull units on RU"
-install -m0644 "$REPO_ROOT/deploy/systemd/rdda-xray.service"   "$root/etc/systemd/system/rdda-xray.service"
+log "install real rdda-singbox + pull + nfqws units on RU"
+install -m0644 "$REPO_ROOT/deploy/systemd/rdda-singbox.service" "$root/etc/systemd/system/rdda-singbox.service"
 install -m0644 "$REPO_ROOT/deploy/systemd/rdda-pull.service"   "$root/etc/systemd/system/rdda-pull.service"
 install -m0644 "$REPO_ROOT/deploy/systemd/rdda-pull.timer"     "$root/etc/systemd/system/rdda-pull.timer"
+install -m0644 "$REPO_ROOT/deploy/systemd/rdda-nfqws.service"  "$root/etc/systemd/system/rdda-nfqws.service"
+install -D -m0644 "$REPO_ROOT/deploy/nftables/rdda-nfqws.nft"  "$root/etc/rdda/rdda-nfqws.nft"
 
 log "fetch the pull token from EU (operator looks it up on EU)"
 TOKEN="$(nsrun eu bash -lc "grep '^pull_token:' /etc/rdda/config.yaml | awk '{print \$2}'")"
 
-log "RU real flow: pull.env + initial pull + start xray + enable timer"
+log "RU real flow: pull.env + initial pull + start sing-box + enable timer"
 nsrun ru bash -eus <<INRU
 install -d -m0700 -o rdda -g rdda /etc/rdda
 cat > /etc/rdda/pull.env <<ENV
@@ -23,15 +25,18 @@ RDDA_PULL_FROM=https://sub.rdda.test/ru/config
 RDDA_PULL_TOKEN=${TOKEN}
 ENV
 chmod 600 /etc/rdda/pull.env
-# sudoers so the rdda user can reload xray after a pull
-echo 'rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-xray' > /etc/sudoers.d/rdda-reload
+# sudoers so the rdda user can reload sing-box after a pull
+echo 'rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-singbox' > /etc/sudoers.d/rdda-reload
 chmod 440 /etc/sudoers.d/rdda-reload
-# initial pull (no --dir, no --dest: defaults to /etc/rdda/xray.json)
+# initial pull (no --dir, no --dest: defaults to /etc/rdda/singbox.json)
 rdda pull --from https://sub.rdda.test/ru/config --token ${TOKEN} --reload-cmd true
-sed -i 's#"loglevel": "warning"#"loglevel": "debug"#' /etc/rdda/xray.json
+jq '.log.level = "debug"' /etc/rdda/singbox.json > /etc/rdda/singbox.json.new
+mv /etc/rdda/singbox.json.new /etc/rdda/singbox.json
 chown -R rdda:rdda /etc/rdda
 systemctl daemon-reload
-systemctl enable --now rdda-xray rdda-pull.timer
+# nfqws desync is enabled in a follow-up iteration once the core tunnel is green;
+# its unit + nft are installed above so the deploy surface is exercised.
+systemctl enable --now rdda-singbox rdda-pull.timer
 INRU
-wait_active ru rdda-xray
+wait_active ru rdda-singbox
 log "ru provisioned"

@@ -23,12 +23,20 @@ body="$(nsrun client bash -lc 'curl -fsS --max-time 20 --socks5-hostname 127.0.0
 [ "$body" = "RDDA_OK" ] || die "client did not reach target via tunnel (got: '${body}')"
 log "OK: client -> RU -> edge -> EU -> target returned RDDA_OK (exit is EU)"
 
-log "4) pull-sync: a NEW client added on EU lands in RU's config"
+log "4) multiplex negotiated on client->RU (the inspected hop; Signal-3 guard)"
+# sing-box logs an accepted muxed inbound as "inbound multiplex connection ...".
+if nsrun ru bash -lc "journalctl -u rdda-singbox --no-pager 2>&1 | grep -qiE 'multiplex|mux'"; then
+  log "OK: client->RU connection is multiplexed"
+else
+  die "multiplex was NOT negotiated on the client->RU hop (Signal-3 regression)"
+fi
+
+log "5) pull-sync: a NEW client added on EU lands in RU's config"
 NEW_UUID="$(nsrun eu bash -lc 'rdda client add latecomer >/dev/null; jq -r .uuid /etc/rdda/clients/latecomer.json')"
 nsrun ru systemctl start rdda-pull.service
 ok=no
 for _ in $(seq 1 20); do
-  if nsrun ru bash -lc "jq -e --arg u '$NEW_UUID' '.inbounds[0].settings.clients[]|select(.id==\$u)' /etc/rdda/xray.json >/dev/null 2>&1"; then ok=yes; break; fi
+  if nsrun ru bash -lc "jq -e --arg u '$NEW_UUID' '.inbounds[0].users[]|select(.uuid==\$u)' /etc/rdda/singbox.json >/dev/null 2>&1"; then ok=yes; break; fi
   sleep 0.5
 done
 [ "$ok" = yes ] || die "pull-sync did not deliver the new client to RU"

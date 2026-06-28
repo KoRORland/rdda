@@ -19,6 +19,16 @@ ip link set br-rdda up
 iptables -I FORWARD -i br-rdda -j ACCEPT 2>/dev/null || true
 iptables -I FORWARD -o br-rdda -j ACCEPT 2>/dev/null || true
 
+# Internet egress for the containers: masquerade bridge traffic leaving for the
+# real internet (anything not destined back into the bridge subnet). This makes
+# the nodes behave like production — the client->RU REALITY handshake relays to a
+# real site (www.apple.com) and sing-box downloads its geoip-ru rule-set. The
+# test's container-to-container isolation is enforced by the inet rdda nft rules
+# below, NOT by withholding egress.
+sysctl -qw net.ipv4.ip_forward=1
+iptables -t nat -C POSTROUTING -s 203.0.113.0/24 ! -d 203.0.113.0/24 -j MASQUERADE 2>/dev/null \
+  || iptables -t nat -A POSTROUTING -s 203.0.113.0/24 ! -d 203.0.113.0/24 -j MASQUERADE
+
 HOSTS_BLOCK=$'203.0.113.10 eu\n203.0.113.20 edge tunnel.rdda.test sub.rdda.test\n203.0.113.30 ru\n203.0.113.40 client\n203.0.113.50 target target.rdda.test'
 
 for h in eu edge ru client target; do
