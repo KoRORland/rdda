@@ -43,6 +43,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newPullCmd())
 	root.AddCommand(newCheckDestCmd())
 	root.AddCommand(newHealthCmd())
+	root.AddCommand(newStatusCmd(&dir))
 	return root
 }
 

@@ -54,6 +54,18 @@ func extractRealityDest(cfgJSON []byte) (realityDest, bool) {
 	return realityDest{}, false
 }
 
+// dialReality opens a TLS 1.3 handshake to a REALITY dest; nil means reachable.
+func dialReality(dest realityDest) error {
+	conn, err := tls.DialWithDialer(
+		&net.Dialer{Timeout: 8 * time.Second}, "tcp", net.JoinHostPort(dest.host, strconv.Itoa(dest.port)),
+		&tls.Config{ServerName: dest.host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec
+	)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}
+
 func newCheckDestCmd() *cobra.Command {
 	var cfgPath string
 	var warn bool
@@ -77,27 +89,19 @@ func newCheckDestCmd() *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), "check-dest: no REALITY inbound to verify (skipping)")
 				return nil
 			}
-			addr := net.JoinHostPort(dest.host, strconv.Itoa(dest.port))
-			conn, err := tls.DialWithDialer(
-				&net.Dialer{Timeout: 8 * time.Second}, "tcp", addr,
-				// REALITY does not validate the dest cert (auth is via the keypair); we only
-				// care that the dest is reachable and completes a TLS 1.3 handshake.
-				&tls.Config{ServerName: dest.host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec
-			)
-			if err != nil {
+			if err := dialReality(dest); err != nil {
 				failErr := fmt.Errorf("REALITY dest %s is not reachable via TLS 1.3 from this node: %w\n"+
 					"  the inspected hop sends SNI %q and this node relays the handshake there;\n"+
 					"  choose a --client-sni reachable AND unblocked from here, then re-render the config",
-					addr, err, dest.host)
+					net.JoinHostPort(dest.host, strconv.Itoa(dest.port)), err, dest.host)
 				if warn {
-					// Soft mode: surface the problem but let the data plane start anyway.
 					fmt.Fprintf(cmd.ErrOrStderr(), "check-dest WARNING: %v\n", failErr)
 					return nil
 				}
 				return failErr
 			}
-			_ = conn.Close()
-			fmt.Fprintf(cmd.OutOrStdout(), "check-dest: REALITY dest %s reachable (TLS 1.3) OK\n", addr)
+			fmt.Fprintf(cmd.OutOrStdout(), "check-dest: REALITY dest %s reachable (TLS 1.3) OK\n",
+				net.JoinHostPort(dest.host, strconv.Itoa(dest.port)))
 			return nil
 		},
 	}
