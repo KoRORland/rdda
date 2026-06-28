@@ -3,9 +3,12 @@ package subserver
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/KoRORland/rdda/internal/health"
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subscription"
 	"github.com/KoRORland/rdda/internal/singboxconf"
@@ -69,6 +72,36 @@ func Handler(store *state.Store) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(b)
+	})
+	mux.HandleFunc("/ru/health", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		cfg, err := store.LoadConfig()
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if cfg.PullToken == "" {
+			http.NotFound(w, r) // pull-sync not enabled: do not advertise the endpoint
+			return
+		}
+		token := r.URL.Query().Get("token")
+		if subtle.ConstantTimeCompare([]byte(token), []byte(cfg.PullToken)) != 1 {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var rep health.Report
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&rep); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := store.SaveRUHealth(state.RUHealth{Report: rep, ReceivedAt: time.Now().UTC()}); err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	})
 	return mux
 }
