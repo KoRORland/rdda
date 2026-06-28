@@ -41,6 +41,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newRenderCmd(&dir))
 	root.AddCommand(newServeCmd(&dir))
 	root.AddCommand(newPullCmd())
+	root.AddCommand(newCheckDestCmd())
 	return root
 }
 
@@ -108,8 +109,8 @@ func newInitCmd(dir *string) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&ruHost, "ru-host", "", "RU node public host/IP (required)")
 	cmd.Flags().StringVar(&euHost, "eu-host", "", "EU node public host/IP (required)")
-	cmd.Flags().StringVar(&clientSNI, "client-sni", "www.apple.com", "REALITY SNI for client→RU hop")
-	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "www.apple.com", "REALITY SNI for RU→EU hop")
+	cmd.Flags().StringVar(&clientSNI, "client-sni", "addons.mozilla.org", "REALITY SNI/dest for client→RU hop (must be reachable + unblocked FROM the RU node)")
+	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "addons.mozilla.org", "REALITY SNI/dest for the non-CF RU→EU fallback (dialed from the EU node)")
 	cmd.Flags().StringVar(&geoipPath, "geoip-path", "/etc/rdda/geoip-ru.srs", "RU local geoip-ru rule-set path for domestic split-routing (empty to disable)")
 	_ = cmd.MarkFlagRequired("ru-host")
 	_ = cmd.MarkFlagRequired("eu-host")

@@ -4,6 +4,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# Refuse to start (and thus fail the install / pull-reload) if this node cannot
+# reach the REALITY handshake dest. On the RU node that dest is the SNI the
+# inspected client->RU hop carries and the site the node relays the handshake to;
+# a blocked/unreachable dest means no client can connect. No-op on a CF-fronted
+# EU node (its WebSocket inbound has no REALITY).
+ExecStartPre=/usr/local/bin/rdda check-dest -c /etc/rdda/singbox.json
 ExecStart=/usr/local/bin/sing-box run -c /etc/rdda/singbox.json
 Restart=on-failure
 RestartSec=3

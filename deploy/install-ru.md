@@ -34,6 +34,26 @@ on the RU node, and automatic pull-sync is a v0.2 feature). Then:
     chown -R rdda:rdda /etc/rdda
     systemctl enable --now rdda-singbox
 
+### REALITY dest check (automatic — can fail the install on purpose)
+
+`rdda-singbox` runs `rdda check-dest` as an `ExecStartPre`, so the
+`systemctl enable --now` above **fails if this RU node cannot reach the REALITY
+handshake dest over TLS 1.3.** That dest is the `--client-sni` chosen at `rdda init`
+on EU (default **`addons.mozilla.org`**); it is both the SNI the inspected
+client→RU hop carries *and* the site this node relays the handshake to — if it is
+blocked or throttled from inside Russia, no client can connect, so we refuse to
+start rather than ship a dead node.
+
+If the start fails, check why:
+
+    rdda check-dest -c /etc/rdda/singbox.json   # prints the dest and the failure
+
+Then pick an SNI that is **reachable and unblocked from this RU node** (verify by
+hand with `openssl s_client -connect <host>:443 -servername <host> -tls1_3 </dev/null`),
+re-run `rdda init --client-sni <host> …` and `rdda render ru` on EU, re-copy the
+config here, and start again. The dest must support TLS 1.3 (the REALITY
+requirement) and ideally be a high-collateral site RKN is unlikely to block.
+
 ## 3. After client changes
 
 Whenever you add/remove clients on EU, re-run `rdda render ru` there and
