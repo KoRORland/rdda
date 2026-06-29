@@ -46,6 +46,25 @@ on the EU node).
 > The subscription server (`rdda-sub`) is installed but dormant in v0.1; it
 > comes online behind Cloudflare in v0.2.
 
+## Backup & restore (EU state)
+
+The EU node holds RDDA's source of truth (`config.yaml` + `clients/`). Back it up
+**encrypted** and keep the archive + passphrase somewhere safe — losing the EU
+state means re-issuing every client.
+
+    rdda backup --out rdda-backup.rdda     # prompts for a passphrase (entered twice)
+
+The archive is encrypted (argon2id + XChaCha20-Poly1305). **The passphrase cannot
+be recovered** — if you lose it, the backup is unreadable. For unattended use, set
+`RDDA_BACKUP_PASSPHRASE` or pass `--passphrase-file <file>` instead of the prompt.
+
+To rebuild an EU node (fresh install, then):
+
+    rdda restore rdda-backup.rdda          # refuses to overwrite unless --force
+
+Restore writes `config.yaml` + `clients/` into `/etc/rdda` and chowns them to the
+`rdda` user. Use `--force` to overwrite an existing state directory.
+
 ## 5. Cloudflare Tunnel (v0.2)
 
 This section brings up the Cloudflare tunnel so the subscription endpoint and
