@@ -38,6 +38,26 @@ func TestNewToken(t *testing.T) {
 	}
 }
 
+func TestPublicFromPrivate(t *testing.T) {
+	kp, err := NewX25519Keypair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := PublicFromPrivate(kp.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != kp.PublicKey {
+		t.Fatalf("derived %s, want %s", got, kp.PublicKey)
+	}
+	if _, err := PublicFromPrivate("!!! not base64 !!!"); err == nil {
+		t.Fatal("invalid private key must error")
+	}
+	if _, err := PublicFromPrivate("YWJj"); err == nil {
+		t.Fatal("wrong-length key must error")
+	}
+}
+
 func TestNewX25519Keypair(t *testing.T) {
 	kp, err := NewX25519Keypair()
 	if err != nil {

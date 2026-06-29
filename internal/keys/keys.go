@@ -63,3 +63,20 @@ func NewX25519Keypair() (X25519Keypair, error) {
 		PublicKey:  base64.RawURLEncoding.EncodeToString(pub),
 	}, nil
 }
+
+// PublicFromPrivate derives the base64-raw-url X25519 public key from a
+// base64-raw-url private key (the REALITY keypair encoding).
+func PublicFromPrivate(privB64 string) (string, error) {
+	priv, err := base64.RawURLEncoding.DecodeString(privB64)
+	if err != nil {
+		return "", fmt.Errorf("decode private key: %w", err)
+	}
+	if len(priv) != 32 {
+		return "", fmt.Errorf("private key must be 32 bytes, got %d", len(priv))
+	}
+	pub, err := curve25519.X25519(priv, curve25519.Basepoint)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(pub), nil
+}
