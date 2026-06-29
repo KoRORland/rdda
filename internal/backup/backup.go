@@ -99,7 +99,11 @@ func Restore(archive []byte, passphrase, destDir string, force bool) error {
 		if clean != "config.yaml" && !strings.HasPrefix(clean, "clients/") {
 			return fmt.Errorf("backup: unexpected archive entry %q", hdr.Name)
 		}
-		b, err := io.ReadAll(io.LimitReader(tr, 8<<20))
+		const maxEntry = 8 << 20 // 8 MiB; RDDA state files are tiny
+		if hdr.Size > maxEntry {
+			return fmt.Errorf("backup: archive entry %q too large (%d bytes)", hdr.Name, hdr.Size)
+		}
+		b, err := io.ReadAll(io.LimitReader(tr, hdr.Size))
 		if err != nil {
 			return err
 		}
