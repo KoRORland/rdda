@@ -65,7 +65,13 @@ To rebuild an EU node (fresh install, then):
 Restore writes `config.yaml` + `clients/` into `/etc/rdda` and chowns them to the
 `rdda` user. Use `--force` to overwrite an existing state directory.
 
-## 5. Cloudflare Tunnel (v0.2)
+## 5. Health & diagnostics
+
+Run `rdda doctor` any time to actively check this node: services, the REALITY
+dest, the Cloudflare control channel, and (on RU) a real fetch through the
+RU→EU tunnel. It exits non-zero if a check fails, so it works in monitoring/cron.
+
+## 6. Cloudflare Tunnel (v0.2)
 
 This section brings up the Cloudflare tunnel so the subscription endpoint and
 the sing-box ingress are reachable without exposing any inbound port to the internet.

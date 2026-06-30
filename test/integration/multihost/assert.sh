@@ -59,4 +59,11 @@ done
 [ "$ok" = yes ] || { nsrun eu rdda status 2>&1 | sed 's/^/[eu-status] /' || true; die "EU rdda status did not show the RU health beat"; }
 log "OK: EU rdda status shows the RU node's health beat"
 
+log "7) rdda doctor on RU exits 0 (units, REALITY dest, control channel, end-to-end egress)"
+# --probe-url at the in-network target so the egress probe fetches through the tunnel.
+if ! nsrun ru bash -lc 'rdda doctor --probe-url http://target.rdda.test/'; then
+  die "rdda doctor reported a failure on the RU node"
+fi
+log "OK: rdda doctor green on RU (full path verified by the end-to-end probe)"
+
 log "ALL ASSERTIONS PASSED"

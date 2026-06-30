@@ -143,7 +143,13 @@ beat and its age (e.g. `✓ last beat 90s ago`). If the node goes silent for
 To inspect locally: `systemctl status rdda-health.timer` and
 `journalctl -u rdda-health.service`.
 
-## 6. Egress DPI-desync (`rdda-nfqws`) and local geoip split-routing
+## 6. Health & diagnostics
+
+Run `rdda doctor` any time to actively check this node: services, the REALITY
+dest, the Cloudflare control channel, and (on RU) a real fetch through the
+RU→EU tunnel. It exits non-zero if a check fails, so it works in monitoring/cron.
+
+## 7. Egress DPI-desync (`rdda-nfqws`) and local geoip split-routing
 
 The installer sets both of these up on the RU node automatically; this section
 explains what they are and how to tune/verify them.
