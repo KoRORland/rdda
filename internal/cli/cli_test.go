@@ -23,6 +23,16 @@ func run(t *testing.T, args ...string) string {
 	return out.String()
 }
 
+func runErr(t *testing.T, args ...string) error {
+	t.Helper()
+	root := newRoot()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(args)
+	return root.Execute()
+}
+
 func TestInitWritesConfig(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
