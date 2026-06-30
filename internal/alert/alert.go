@@ -4,6 +4,7 @@ package alert
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -114,7 +115,7 @@ func (e *Engine) saveFiring(firing map[string]string) error {
 
 // Run evaluates conditions, emails transitions, and persists the firing set.
 func (e *Engine) Run() (fired, resolved []string, err error) {
-	if !e.cfg.Alert.Enabled {
+	if !e.cfg.Alert.Enabled || e.cfg.Alert.Email == "" {
 		return nil, nil, nil
 	}
 	last := e.loadFiring()
@@ -183,9 +184,12 @@ func sendEmail(command, to, subject, body string) error {
 		return fmt.Errorf("alert.email is not set")
 	}
 	host, _ := os.Hostname()
-	msg := fmt.Sprintf("From: rdda@%s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\n\r\n%s\r\n",
+	msg := fmt.Sprintf("From: rdda@%s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\n"+
+		"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s\r\n",
 		host, to, subject, time.Now().Format(time.RFC1123Z), body)
-	cmd := exec.Command(command, to)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, command, to)
 	cmd.Stdin = bytes.NewReader([]byte(msg))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%s: %v: %s", command, err, strings.TrimSpace(string(out)))

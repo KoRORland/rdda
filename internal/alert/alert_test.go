@@ -108,6 +108,19 @@ func TestRunDisabledNoop(t *testing.T) {
 	}
 }
 
+func TestRunEmptyEmailNoop(t *testing.T) {
+	e, sent := newTestEngine(t)
+	e.cfg.Alert.Email = "" // enabled but no recipient ⇒ no-op (no perpetual failure)
+	e.beatAge = func() (time.Duration, bool) { return 0, false }
+	f, r, err := e.Run()
+	if err != nil || len(f) != 0 || len(r) != 0 {
+		t.Fatalf("empty email must no-op cleanly: %v %v %v", f, r, err)
+	}
+	if len(*sent) != 0 {
+		t.Fatal("empty email must not send")
+	}
+}
+
 func TestSendEmailViaFakeCommand(t *testing.T) {
 	dir := t.TempDir()
 	rec := filepath.Join(dir, "rec.txt")
