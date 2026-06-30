@@ -154,7 +154,7 @@ RU→EU tunnel. It exits non-zero if a check fails, so it works in monitoring/cr
 The installer sets both of these up on the RU node automatically; this section
 explains what they are and how to tune/verify them.
 
-### 6.1 nfqws2 egress desync — **enabled by the installer**
+### 7.1 nfqws2 egress desync — **enabled by the installer**
 
 The RU node runs `nfqws2` (zapret2) to DPI-desync RDDA's **own** outbound TLS
 handshakes on port 443 (the RU→EU tunnel), so the entry node's egress is harder
@@ -173,7 +173,7 @@ rdda-nfqws`.
 - **Disable** (if it interferes on your route): `systemctl disable --now rdda-nfqws`.
   The tunnel keeps working without it.
 
-### 6.2 Local geoip-ru rule-set
+### 7.2 Local geoip-ru rule-set
 
 To split-route **domestic (RU) traffic direct** and tunnel only the rest, the RU
 sing-box uses a geoip-ru rule-set. It is a **local file** at

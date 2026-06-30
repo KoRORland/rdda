@@ -78,7 +78,7 @@ the sing-box ingress are reachable without exposing any inbound port to the inte
 After this, **close all inbound firewall ports except 22** — sing-box and the sub
 server now listen on loopback only and are reached exclusively via cloudflared.
 
-### 5.1 Install cloudflared
+### 6.1 Install cloudflared
 
     curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
         | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
@@ -87,7 +87,7 @@ server now listen on loopback only and are reached exclusively via cloudflared.
         | sudo tee /etc/apt/sources.list.d/cloudflared.list
     sudo apt-get update && sudo apt-get install -y cloudflared
 
-### 5.2 Authenticate and create the tunnel
+### 6.2 Authenticate and create the tunnel
 
     cloudflared tunnel login          # opens browser; authorizes your Cloudflare account
     cloudflared tunnel create rdda    # note the Tunnel ID and credentials file path printed here
@@ -95,7 +95,7 @@ server now listen on loopback only and are reached exclusively via cloudflared.
 The credentials file is written to `~/.cloudflared/<TUNNEL_ID>.json` (or the
 path printed by the command). Record both values — you need them in the next step.
 
-### 5.3 Re-initialize with tunnel flags
+### 6.3 Re-initialize with tunnel flags
 
 Pass the tunnel parameters to `rdda init` (re-run with the existing config or
 use `--force` if you already ran init in step 2):
@@ -107,17 +107,17 @@ use `--force` if you already ran init in step 2):
         --cf-tunnel-id   <TUNNEL_ID> \
         --cf-credentials-file /etc/cloudflared/<TUNNEL_ID>.json
 
-### 5.4 Write the cloudflared config
+### 6.4 Write the cloudflared config
 
     rdda render cloudflared > /etc/cloudflared/config.yml
     chmod 600 /etc/cloudflared/config.yml
 
-### 5.5 Create DNS routes
+### 6.5 Create DNS routes
 
     cloudflared tunnel route dns rdda <tunnel-hostname>.example.com
     cloudflared tunnel route dns rdda <sub-hostname>.example.com
 
-### 5.6 Create the cloudflared system user and enable the service
+### 6.6 Create the cloudflared system user and enable the service
 
     sudo useradd --system --no-create-home --shell /usr/sbin/nologin cloudflared
     sudo cp ~/.cloudflared/<TUNNEL_ID>.json /etc/cloudflared/
@@ -126,7 +126,7 @@ use `--force` if you already ran init in step 2):
     sudo systemctl daemon-reload
     sudo systemctl enable --now cloudflared
 
-### 5.7 Lock the firewall
+### 6.7 Lock the firewall
 
 With all traffic routed through cloudflared, close every inbound port except SSH:
 

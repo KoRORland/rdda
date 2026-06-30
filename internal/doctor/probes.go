@@ -145,12 +145,29 @@ func buildClientConfig(singboxJSON []byte, socksPort int) (cfg []byte, uuid stri
 // realEgress spins a throwaway sing-box from the RU config and fetches probeURL
 // through its SOCKS proxy. ok=false,err=nil means the fetch failed (tunnel down);
 // err!=nil means the probe was inconclusive (caller WARNs).
+// freePort asks the OS for an unused loopback TCP port for the throwaway SOCKS
+// proxy, so two doctor runs (or anything on a fixed port) can't collide.
+func freePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
 func realEgress(singboxJSON []byte, probeURL string) (bool, error) {
 	bin, err := exec.LookPath("sing-box")
 	if err != nil {
 		return false, fmt.Errorf("sing-box not on PATH")
 	}
-	const socksPort = 12080
+	// Use an OS-assigned free port, not a fixed one: a bind collision would make
+	// every fetch fail and falsely report the tunnel broken (FAIL). A failure to
+	// allocate is inconclusive (WARN), not a FAIL.
+	socksPort, err := freePort()
+	if err != nil {
+		return false, fmt.Errorf("could not allocate a probe port: %w", err)
+	}
 	cfg, _, err := buildClientConfig(singboxJSON, socksPort)
 	if err != nil {
 		return false, err
