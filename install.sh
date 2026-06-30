@@ -127,7 +127,9 @@ fi
 RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/systemd"
 curl -fsSL "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"
 if [ "$ROLE" = "eu" ]; then
-  curl -fsSL "${RAW}/rdda-sub.service" -o "${UNIT_DIR}/rdda-sub.service"
+  curl -fsSL "${RAW}/rdda-sub.service"   -o "${UNIT_DIR}/rdda-sub.service"
+  curl -fsSL "${RAW}/rdda-alert.service" -o "${UNIT_DIR}/rdda-alert.service"
+  curl -fsSL "${RAW}/rdda-alert.timer"   -o "${UNIT_DIR}/rdda-alert.timer"
 fi
 if [ "$ROLE" = "ru" ]; then
   curl -fsSL "${RAW}/rdda-nfqws.service"  -o "${UNIT_DIR}/rdda-nfqws.service"
@@ -141,6 +143,9 @@ if [ "$ROLE" = "ru" ]; then
   curl -fsSL "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
   systemctl enable --now rdda-nfqws
   systemctl enable --now rdda-health.timer
+fi
+if [ "$ROLE" = "eu" ]; then
+  systemctl enable --now rdda-alert.timer
 fi
 
 # --- host hardening (both roles) ---

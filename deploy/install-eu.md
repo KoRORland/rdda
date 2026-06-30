@@ -65,6 +65,29 @@ To rebuild an EU node (fresh install, then):
 Restore writes `config.yaml` + `clients/` into `/etc/rdda` and chowns them to the
 `rdda` user. Use `--force` to overwrite an existing state directory.
 
+## Alerting (email via msmtp)
+
+The EU node can email you when the RU node goes down, an EU service stops, or the
+public TLS cert nears expiry. It fires once per transition (and once on recovery).
+
+1. Configure an SMTP relay with msmtp (system-wide `/etc/msmtprc`):
+
+       sudo apt-get install -y msmtp
+       # write /etc/msmtprc with your SMTP host/user/password (see msmtp docs)
+
+2. Enable alerting in `/etc/rdda/config.yaml`:
+
+       alert:
+         enabled: true
+         email: you@example.com
+         # command: msmtp        # optional; default
+         # cert_warn_days: 14     # optional; default
+
+3. Verify delivery, then let the timer run it every ~5 min:
+
+       rdda alert --test          # sends one test email
+       systemctl status rdda-alert.timer
+
 ## 5. Health & diagnostics
 
 Run `rdda doctor` any time to actively check this node: services, the REALITY
