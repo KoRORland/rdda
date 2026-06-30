@@ -8,11 +8,13 @@ This is the high-level design. It deliberately favors **fewer moving parts, well
 maintained components, and observability** over cleverness. See `basic design layout.txt`
 for the original requirements seed.
 
-> **Implementation status — [`v0.2.0`](https://github.com/KoRORland/rdda/releases/tag/v0.2.0)
-> (Lane B).** The DPI-facing core is shipped and integration-gated: 2-hop sing-box data plane,
-> client onboarding, sub server, Cloudflare ingress, nfqws2 egress desync, and config pull-sync.
-> Not yet built (designed below, on the roadmap): health/auto-heal (`rdda-health.timer`),
-> alerting, the `status`/`update`/`backup`/`heal` CLI commands, RU failover, and key rotation.
+> **Implementation status — [`v0.3.0`](https://github.com/KoRORland/rdda/releases/tag/v0.3.0)
+> (Lane B + operator QoL).** The DPI-facing core is shipped and integration-gated: 2-hop
+> sing-box data plane, client onboarding, sub server, Cloudflare ingress, nfqws2 egress desync,
+> and config pull-sync. v0.3 adds the operator tooling: the RU→EU health beat + `rdda status`,
+> `rdda doctor`, encrypted `rdda backup`/`restore`, email `rdda alert` (msmtp), and
+> `rdda update` (self-update + rollback) + `rdda heal` (auto-restart of failed units).
+> Not yet built (designed below, on the roadmap): RU failover and key rotation.
 > Sections marked *(planned)* call out the gaps inline.
 
 ---
@@ -90,7 +92,8 @@ the EU node, which is the internet exit.
 | `rdda-singbox.service` | sing-box: terminates client VLESS (REALITY + multiplex); originates the WebSocket tunnel to EU via Cloudflare; **owns routing** in its `route` block (RU-zone via a local geoip rule-set + intl-allowlist → direct, default → EU tunnel) |
 | `rdda-nfqws.service` | nfqws2 (zapret2): DPI-desync of the RU node's **outbound** 443 handshakes (→EU, →direct allowlist) via an nft egress hook — survives local RU-ISP DPI |
 | `rdda-pull.timer` | periodically pulls desired config (incl. new clients) from EU over Cloudflare |
-| `rdda-health.timer` *(planned)* | local health check; restarts unhealthy units, reports status |
+| `rdda-health.timer` | posts a periodic health beat (units, versions) to EU at a randomized interval; EU stamps `received_at` and judges staleness |
+| `rdda-heal.timer` | restarts any RDDA unit stuck in systemd `failed` state (start-limit recovery); never touches a running unit |
 
 > **Implemented vs designed:** routing and the REALITY camouflage are **folded into sing-box**, not
 > separate units. There is no `rdda-router.service` — routing lives in the sing-box `route` block
@@ -110,7 +113,9 @@ a desync failure must not break the tunnel path.
 | `rdda-singbox.service` | sing-box: terminates the RU→EU WebSocket tunnel (TLS terminated by Cloudflare, so the inbound runs no TLS); exits to the internet |
 | `rdda-sub.service` | subscription endpoint: serves per-client **sing-box JSON** configs (REALITY + multiplex; behind Cloudflare) |
 | `cloudflared.service` | Cloudflare Tunnel ingress (config rendered by `rdda render cloudflared`) — fronts the sub + tunnel endpoints with no inbound port exposed |
-| `rdda-health.timer` *(planned)* | aggregates EU + RU health; triggers operator alerts |
+| `rdda-alert.timer` | evaluates conditions (RU beat stale, an EU unit down, cert near expiry) and emails the operator via `msmtp` on transitions — fires once when it breaks, once on recovery |
+| `rdda-heal.timer` | restarts any RDDA unit stuck in systemd `failed` state; never touches a running unit |
+| `rdda-update.timer` *(opt-in, off by default)* | runs `rdda update` (checksum-verified self-update + auto-rollback) on a staggered schedule |
 
 EU node is the **single source of truth**.
 
@@ -128,15 +133,17 @@ rdda client add <name>     # create a client, print the subscription URL to hand
 rdda client rm <name>      # revoke a client
 rdda client list           # list clients
 rdda status                # EU + RU health at a glance
-rdda update                # fetch pinned versions, restart affected services
-rdda backup                # write state to a single archive file
+rdda doctor                # active checks (services, REALITY dest, Cloudflare, tunnel)
+rdda alert --test          # verify email alerting (msmtp) is wired
+rdda update                # checksum-verified self-update of the rdda binary (auto-rollback)
+rdda backup                # write encrypted state to a single archive file
 ```
 
 **RU node (mostly hands-off):**
 ```
-rdda status                # local health
-rdda heal                  # restart unhealthy units
-rdda update                # self-update to pinned versions
+rdda doctor                # active local checks (incl. a real fetch through the tunnel)
+rdda heal                  # restart units stuck in systemd failed state
+rdda update                # checksum-verified self-update of the rdda binary (auto-rollback)
 ```
 New clients reach the RU node automatically via `rdda-pull.timer`; the operator does not
 touch the RU node for routine onboarding.
@@ -191,14 +198,18 @@ Switching engines = change one profile value + its template; no other code chang
 
 ## 7. Self-healing, alerting, safety
 
-- **Self-healing:** systemd `Restart=on-failure` on every service + `rdda-health.timer`
-  (detect unhealthy → restart → report). No orchestrator needed.
-- **Alerting (v1):** **email** via a minimal SMTP relay (e.g. `msmtp`) — lowest overhead,
-  nothing to host. Alerts on node-down and cert/key expiry. **Telegram** alerting is a
-  planned v2 add-on behind the same alert interface.
-- **Failover:** a subscription may list a backup RU entry; clients fail over automatically.
+- **Self-healing:** systemd `Restart=on-failure` on every service + `rdda-heal.timer`,
+  which recovers units stuck in systemd `failed` state once they exhaust their start-limit
+  (the gap `Restart=on-failure` leaves). No orchestrator needed.
+- **Alerting:** **email** via a minimal SMTP relay (`msmtp`) — lowest overhead, nothing to
+  host. `rdda-alert.timer` fires on transitions (RU node down, an EU unit down, cert near
+  expiry), once when it breaks and once on recovery. **Telegram** is a planned v2 add-on
+  behind the same alert interface.
 - **Fail-closed:** if the tunnel drops, the client does not leak — it shows disconnected.
-- **Key rotation:** REALITY keys / certs rotated via `rdda update`; expiry surfaces as an alert.
+- **Failover** *(planned)*: a subscription may list a backup RU entry; clients fail over
+  automatically.
+- **Key rotation** *(planned)*: REALITY keys / certs rotated by a future command; cert
+  expiry already surfaces as an alert today.
 
 ---
 
