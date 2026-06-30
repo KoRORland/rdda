@@ -1,0 +1,9 @@
+[Unit]
+Description=RDDA auto-heal — restart units stuck in systemd failed state
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rdda heal
+# Runs as root (no User=): systemctl restart of arbitrary units is a root op.

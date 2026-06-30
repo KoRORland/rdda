@@ -143,6 +143,33 @@ beat and its age (e.g. `✓ last beat 90s ago`). If the node goes silent for
 To inspect locally: `systemctl status rdda-health.timer` and
 `journalctl -u rdda-health.service`.
 
+## Updates & self-heal
+
+**Self-heal (on by default).** `rdda-heal.timer` runs every ~2 minutes and restarts
+any RDDA unit that systemd has marked `failed` (the case `Restart=on-failure` does
+not cover: a unit that exhausted its start-limit). It never touches a running unit.
+Nothing to configure; check it with `systemctl status rdda-heal.timer`.
+
+**Updating the binary.** Update `rdda` to the latest release (verified by checksum):
+
+    rdda update --check     # report: "vX installed, vY available" — no changes
+    sudo rdda update        # download, verify, swap, restart rdda-sub
+
+`update` keeps the previous binary at `/usr/local/bin/rdda.prev` and **rolls back
+automatically** if the new binary fails to run or `rdda-sub` does not come back up.
+If a release runs but misbehaves, revert manually:
+
+    sudo rdda update --rollback
+
+**Opt-in auto-update.** A disabled-by-default timer can run `rdda update` for you:
+
+    sudo systemctl enable --now rdda-update.timer
+
+It is staggered (randomized delay) so a bad release does not hit every node at once.
+**Risk:** auto-rollback only catches a *broken* binary — a release that runs but is
+subtly wrong will deploy to every opted-in node. Leave the timer off if you prefer
+to update by hand, and recover with `--rollback` or a pinned re-install.
+
 ## 6. Health & diagnostics
 
 Run `rdda doctor` any time to actively check this node: services, the REALITY

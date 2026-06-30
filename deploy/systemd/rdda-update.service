@@ -1,0 +1,9 @@
+[Unit]
+Description=RDDA self-update — fetch + verify + swap the rdda binary (rolls back on failure)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rdda update
+# Runs as root (no User=): writes /usr/local/bin and restarts rdda-sub.

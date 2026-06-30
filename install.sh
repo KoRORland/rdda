@@ -126,6 +126,10 @@ fi
 # --- systemd units (fetched at the resolved tag to match the binary) ---
 RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/systemd"
 curl -fsSL "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"
+curl -fsSL "${RAW}/rdda-heal.service"    -o "${UNIT_DIR}/rdda-heal.service"
+curl -fsSL "${RAW}/rdda-heal.timer"      -o "${UNIT_DIR}/rdda-heal.timer"
+curl -fsSL "${RAW}/rdda-update.service"  -o "${UNIT_DIR}/rdda-update.service"
+curl -fsSL "${RAW}/rdda-update.timer"    -o "${UNIT_DIR}/rdda-update.timer"
 if [ "$ROLE" = "eu" ]; then
   curl -fsSL "${RAW}/rdda-sub.service"   -o "${UNIT_DIR}/rdda-sub.service"
   curl -fsSL "${RAW}/rdda-alert.service" -o "${UNIT_DIR}/rdda-alert.service"
@@ -137,6 +141,7 @@ if [ "$ROLE" = "ru" ]; then
   curl -fsSL "${RAW}/rdda-health.timer"   -o "${UNIT_DIR}/rdda-health.timer"
 fi
 systemctl daemon-reload
+systemctl enable --now rdda-heal.timer
 log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
 if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
