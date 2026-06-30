@@ -1,8 +1,10 @@
 package selfupdate
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -71,6 +73,36 @@ func TestUpdateHappyPath(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(bin + ".prev"); string(b) != "v0.2.0" {
 		t.Fatalf("backup not kept, got %q", b)
+	}
+}
+
+// The swapped-in binary must keep its world-exec bit even under a hardened
+// umask — rdda-sub runs as User=rdda and must be able to exec it. os.WriteFile's
+// mode is umask-masked, so this guards the explicit chmod in writeBin.
+func TestUpdatePreservesExecModeUnderHardenedUmask(t *testing.T) {
+	old := syscall.Umask(0o077)
+	defer syscall.Umask(old)
+	u, bin := newTestUpdater(t, "v0.2.0", "v0.3.0")
+	if _, _, err := u.Update(); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0o755 {
+		t.Fatalf("binary must stay 0755 under umask 077, got %o", perm)
+	}
+}
+
+func TestUpdateRestartErrorRollsBack(t *testing.T) {
+	u, bin := newTestUpdater(t, "v0.2.0", "v0.3.0")
+	u.restart = func(string) error { return errors.New("restart boom") }
+	if _, _, err := u.Update(); err == nil {
+		t.Fatal("a restart failure must error")
+	}
+	if b, _ := os.ReadFile(bin); string(b) != "v0.2.0" {
+		t.Fatalf("must roll back the binary after a restart failure, got %q", b)
 	}
 }
 

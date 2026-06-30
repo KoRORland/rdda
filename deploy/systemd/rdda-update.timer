@@ -6,7 +6,6 @@ OnBootSec=15min
 OnUnitActiveSec=24h
 # Stagger opted-in nodes so a bad release does not reach them all at once.
 RandomizedDelaySec=12h
-Persistent=true
 
 [Install]
 WantedBy=timers.target

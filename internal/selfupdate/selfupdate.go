@@ -99,18 +99,26 @@ func (u *Updater) Update() (from, to string, err error) {
 		return u.current, to, fmt.Errorf("swap binary: %w", err)
 	}
 	if v, verr := u.runVersion(u.binPath); verr != nil || v != to {
-		u.rollback()
-		return u.current, to, fmt.Errorf("new binary self-check failed (got %q want %q): rolled back", v, to)
+		return u.current, to, u.revert(fmt.Sprintf("new binary self-check failed (got %q want %q)", v, to))
 	}
 	if rerr := u.restart(restartUnit); rerr != nil {
-		u.rollback()
-		return u.current, to, fmt.Errorf("restart %s failed: %v: rolled back", restartUnit, rerr)
+		return u.current, to, u.revert(fmt.Sprintf("restart %s failed: %v", restartUnit, rerr))
 	}
 	if !u.waitActive(restartUnit) {
-		u.rollback()
-		return u.current, to, fmt.Errorf("%s not active after update: rolled back", restartUnit)
+		return u.current, to, u.revert(fmt.Sprintf("%s not active after update", restartUnit))
 	}
 	return u.current, to, nil
+}
+
+// revert rolls back after a failed update and returns an error describing both
+// the original cause and whether the rollback itself succeeded. A silent
+// rollback failure reported as success is the worst outcome for a no-brick
+// feature, so a failed restore is surfaced loudly.
+func (u *Updater) revert(cause string) error {
+	if rerr := u.rollback(); rerr != nil {
+		return fmt.Errorf("%s: ROLLBACK FAILED, binary may be broken: %v", cause, rerr)
+	}
+	return fmt.Errorf("%s: rolled back", cause)
 }
 
 // Rollback restores the previous binary (rdda.prev) and restarts rdda-sub.
@@ -118,28 +126,35 @@ func (u *Updater) Rollback() error {
 	if _, err := os.Stat(u.prevPath()); err != nil {
 		return fmt.Errorf("no previous binary to roll back to")
 	}
+	return u.rollback()
+}
+
+// rollback restores the previous binary and restarts rdda-sub, used by Update on
+// a failed update. It returns the restore error (if any) so the caller can report
+// a failed rollback rather than falsely claiming the node reverted.
+func (u *Updater) rollback() error {
 	if err := u.restoreBin(); err != nil {
 		return err
 	}
 	return u.restart(restartUnit)
 }
 
-// rollback is the best-effort internal revert used by Update on a failed update.
-func (u *Updater) rollback() {
-	_ = u.restoreBin()
-	_ = u.restart(restartUnit)
-}
-
 func (u *Updater) writeBin(b []byte) error {
 	np := u.binPath + ".new"
 	if err := os.WriteFile(np, b, 0o755); err != nil {
+		_ = os.Remove(np) // don't leave a partial .new behind on a failed write
 		return err
 	}
 	if err := os.Rename(np, u.binPath); err != nil {
-		_ = os.Remove(np) // don't leave a stale .new behind on a failed swap
+		_ = os.Remove(np) // ...or a stale .new behind on a failed swap
 		return err
 	}
-	return nil
+	// os.WriteFile's mode is masked by umask; the live binary must keep its
+	// world-exec bit so rdda-sub (User=rdda) can exec it. Force the mode
+	// explicitly, matching install.sh's `install -m 0755`. Without this, a
+	// hardened umask (027/077) would strip o+x and brick rdda-sub — and a
+	// rollback routes through here too, so it would not recover.
+	return os.Chmod(u.binPath, 0o755)
 }
 
 func (u *Updater) restoreBin() error {
