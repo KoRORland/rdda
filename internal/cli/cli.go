@@ -47,6 +47,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newBackupCmd(&dir))
 	root.AddCommand(newRestoreCmd(&dir))
 	root.AddCommand(newDoctorCmd(&dir))
+	root.AddCommand(newAlertCmd(&dir))
 	return root
 }
 
