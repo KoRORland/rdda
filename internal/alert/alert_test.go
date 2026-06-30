@@ -124,3 +124,35 @@ func TestSendEmailViaFakeCommand(t *testing.T) {
 		t.Fatalf("recorded:\n%s", s)
 	}
 }
+
+func TestRunResolvedRetryOnSendFailure(t *testing.T) {
+	e, _ := newTestEngine(t)
+	// bring ru-down into the persisted firing state with a working send
+	e.beatAge = func() (time.Duration, bool) { return 0, false }
+	if _, _, err := e.Run(); err != nil {
+		t.Fatalf("initial fire: %v", err)
+	}
+	// condition clears but the RESOLVED send fails → key must stay in state
+	e.beatAge = func() (time.Duration, bool) { return time.Minute, true }
+	e.send = func(string, string) error { return os.ErrPermission }
+	_, resolved, err := e.Run()
+	if err == nil {
+		t.Fatal("expected error from the failed resolved send")
+	}
+	if len(resolved) != 0 {
+		t.Fatalf("resolved must not be reported on a failed send: %v", resolved)
+	}
+	// retry: key still in state → RESOLVED sent and returned
+	var sent []string
+	e.send = func(subject, _ string) error { sent = append(sent, subject); return nil }
+	_, r2, err2 := e.Run()
+	if err2 != nil {
+		t.Fatalf("retry run: %v", err2)
+	}
+	if len(r2) != 1 || r2[0] != "ru-down" {
+		t.Fatalf("expected ru-down resolved on retry: %v", r2)
+	}
+	if len(sent) != 1 || !strings.Contains(sent[0], "RESOLVED") {
+		t.Fatalf("expected a RESOLVED subject on retry: %v", sent)
+	}
+}
