@@ -87,3 +87,21 @@ func TestDesyncRoundTrip(t *testing.T) {
 		t.Fatalf("desync round-trip: %+v", got.Desync)
 	}
 }
+
+func TestAlertRoundTrip(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := Config{RUHost: "ru", Alert: Alert{Enabled: true, Email: "ops@x", Command: "msmtp", CertWarnDays: 7}}
+	if err := s.SaveConfig(in); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Alert.Enabled || got.Alert.Email != "ops@x" || got.Alert.Command != "msmtp" || got.Alert.CertWarnDays != 7 {
+		t.Fatalf("alert round-trip: %+v", got.Alert)
+	}
+}

@@ -35,6 +35,14 @@ type Desync struct {
 	Ports   []int  `yaml:"ports"`
 }
 
+// Alert configures EU-side email alerting via msmtp. Fail-soft; EU node only.
+type Alert struct {
+	Enabled      bool   `yaml:"enabled"`
+	Email        string `yaml:"email"`
+	Command      string `yaml:"command"`        // default "msmtp"
+	CertWarnDays int    `yaml:"cert_warn_days"` // default 14
+}
+
 // Config is the full RDDA deployment description (the EU source of truth).
 type Config struct {
 	RUHost           string     `yaml:"ru_host"`
@@ -58,6 +66,7 @@ type Config struct {
 	PullToken        string     `yaml:"pull_token"`
 	Fingerprint      string     `yaml:"fingerprint"`
 	Desync           Desync     `yaml:"desync"`
+	Alert            Alert      `yaml:"alert"`
 }
 
 // Store is a directory-backed RDDA state store.
