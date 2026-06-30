@@ -47,6 +47,11 @@ func New(current string) *Updater {
 		out, _ := exec.Command("systemctl", "is-active", unit).CombinedOutput()
 		return strings.TrimSpace(string(out)) == "active"
 	}
+	// The post-swap self-check compares this output against the target release
+	// tag (v == to). That contract holds because `rdda version` prints exactly
+	// the ldflags-injected Version and nothing else (see internal/cli/cli.go).
+	// If `rdda version` ever prints more than the bare tag, this check would
+	// roll back every valid update — keep them in sync.
 	u.runVersion = func(path string) (string, error) {
 		out, err := exec.Command(path, "version").CombinedOutput()
 		return strings.TrimSpace(string(out)), err
@@ -130,7 +135,11 @@ func (u *Updater) writeBin(b []byte) error {
 	if err := os.WriteFile(np, b, 0o755); err != nil {
 		return err
 	}
-	return os.Rename(np, u.binPath)
+	if err := os.Rename(np, u.binPath); err != nil {
+		_ = os.Remove(np) // don't leave a stale .new behind on a failed swap
+		return err
+	}
+	return nil
 }
 
 func (u *Updater) restoreBin() error {
