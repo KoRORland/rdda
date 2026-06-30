@@ -39,11 +39,14 @@ safety. Hence the name.
 - **Doesn't snitch on itself.** The in-Russia node exposes no management surface and looks
   like a normal web server to anyone poking at it.
 
-> 🟢 **Status: `v0.2.0` released** — the Lane B **single sing-box** data plane
+> 🟢 **Status: `v0.3.0` released** — the Lane B **single sing-box** data plane
 > (VLESS + REALITY + multiplex on the inspected hop, VLESS + WebSocket over
 > Cloudflare), verified end-to-end by the multi-host integration harness.
-> Still young — expect rough edges. Latest build:
-> [**releases/v0.2.0**](https://github.com/KoRORland/rdda/releases/tag/v0.2.0).
+> v0.3 makes the "self-healing, self-updating" promise real, adding the operator
+> quality-of-life tooling: `status`, `doctor`, encrypted `backup`/`restore`,
+> email `alert`s, and self-`update` + auto-`heal`. Still young — expect rough
+> edges. Latest build:
+> [**releases/v0.3.0**](https://github.com/KoRORland/rdda/releases/tag/v0.3.0).
 > See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
 ## How it works (the 30-second version)
@@ -65,9 +68,9 @@ Full design and rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 You need **two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
 
-The installer pulls the latest published release (currently **v0.2.0**, checksum-verified
+The installer pulls the latest published release (currently **v0.3.0**, checksum-verified
 amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
-`--version v0.2.0` to either `bash -s --` line below.
+`--version v0.3.0` to either `bash -s --` line below.
 
 1. **EU node** (SSH is fine here):
    ```bash
@@ -88,6 +91,23 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
    ```
 
 See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](deploy/install-ru.md) for the detailed walkthrough.
+
+### Day-2 operations
+
+All run on the **EU** node (the source of truth). Most also have a systemd timer
+so you rarely type them by hand.
+
+| Command | What it does |
+|---|---|
+| `rdda status` | Snapshot of both nodes — units, versions, and how fresh the RU→EU health beat is. |
+| `rdda doctor` | Actively checks this node (services, REALITY dest, Cloudflare, a real fetch through the tunnel on RU); non-zero exit on failure, so it drops into cron/monitoring. |
+| `rdda backup` / `rdda restore` | Encrypted (argon2id + XChaCha20-Poly1305) backup of `config.yaml` + clients. The passphrase can't be recovered — keep it safe. |
+| `rdda alert` | Emails you (via `msmtp`) when the RU node drops, an EU service stops, or the TLS cert nears expiry — once per transition, and again on recovery. Runs every ~5 min via `rdda-alert.timer`. |
+| `rdda update [--check\|--rollback]` | Checksum-verified self-update of the `rdda` binary, with automatic rollback if the new build is broken. An opt-in, disabled-by-default timer can run it hands-off. |
+| `rdda heal` | Restarts any RDDA unit stuck in systemd's `failed` state (the gap `Restart=on-failure` leaves once a unit exhausts its start-limit). On by default via `rdda-heal.timer`; never touches a running unit. |
+
+Details and setup (msmtp, the opt-in auto-update timer, etc.) are in
+[`deploy/install-eu.md`](deploy/install-eu.md).
 
 ## 📱 Quickstart — Clients (your friends & family)
 
