@@ -12,6 +12,25 @@ log()  { printf '\033[1;34m[rdda]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[rdda]\033[0m %s\n' "$*" >&2; }
 fail() { printf '\033[1;31m[rdda] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# fetch: resilient download. Bounds every transfer so a stalled connection can
+# never hang the install (the RU node reaches GitHub over a flaky path): fail a
+# dead connect in 20s, abort a stalled transfer after 30s below 1 KB/s, and retry
+# transient failures a few times. Drop-in for `curl -fsSL`.
+fetch() {
+  curl -fsSL \
+    --connect-timeout 20 --max-time 600 \
+    --speed-limit 1024 --speed-time 30 \
+    --retry 4 --retry-delay 3 --retry-connrefused \
+    "$@"
+}
+
+# Version markers make pinned third-party binaries idempotent: re-running the
+# installer (or recovering from a mid-run abort) skips a download that already
+# landed, instead of re-fetching over the same flaky path.
+MARK_DIR="/usr/local/lib/rdda"
+have_version() { [ "$(cat "${MARK_DIR}/$1.version" 2>/dev/null)" = "$2" ]; }  # $1=name $2=version
+mark_version() { mkdir -p "$MARK_DIR"; printf '%s\n' "$2" > "${MARK_DIR}/$1.version"; }
+
 ROLE=""
 VERSION="latest"
 KEEP_SSH="no"
@@ -44,7 +63,7 @@ log "role=$ROLE arch=$ARCH version=$VERSION"
 
 # --- resolve release tag ---
 if [ "$VERSION" = "latest" ]; then
-  TAG="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+  TAG="$(fetch "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
   [ -n "$TAG" ] || fail "could not resolve latest release tag (has a release been published?)"
 else
@@ -56,8 +75,8 @@ log "installing tag $TAG"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 BASE="https://github.com/${REPO}/releases/download/${TAG}"
-curl -fsSL "${BASE}/rdda-linux-${ARCH}" -o "${TMP}/rdda-linux-${ARCH}"
-curl -fsSL "${BASE}/SHA256SUMS"         -o "${TMP}/SHA256SUMS"
+fetch "${BASE}/rdda-linux-${ARCH}" -o "${TMP}/rdda-linux-${ARCH}"
+fetch "${BASE}/SHA256SUMS"         -o "${TMP}/SHA256SUMS"
 ( cd "$TMP" && grep "rdda-linux-${ARCH}\$" SHA256SUMS | sha256sum -c - ) \
   || fail "checksum verification failed for rdda-linux-${ARCH}"
 install -m 0755 "${TMP}/rdda-linux-${ARCH}" "$BIN_DST"
@@ -70,14 +89,19 @@ case "$ARCH" in
   arm64) SINGBOX_SHA256="4742df6a4314e8ecc41736849fca6d73b8f9e91b6e8b06ee794ff17ba180579e";;
 esac
 SINGBOX_TARBALL="sing-box-${SINGBOX_VERSION}-linux-${ARCH}.tar.gz"
-log "installing sing-box ${SINGBOX_VERSION}"
-curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VERSION}/${SINGBOX_TARBALL}" \
-  -o "${TMP}/${SINGBOX_TARBALL}"
-echo "${SINGBOX_SHA256}  ${TMP}/${SINGBOX_TARBALL}" | sha256sum -c - \
-  || fail "sing-box checksum verification failed"
-tar -xzf "${TMP}/${SINGBOX_TARBALL}" -C "$TMP"
-install -m 0755 "${TMP}/sing-box-${SINGBOX_VERSION}-linux-${ARCH}/sing-box" /usr/local/bin/sing-box
-log "installed sing-box ${SINGBOX_VERSION}"
+if have_version singbox "$SINGBOX_VERSION" && command -v sing-box >/dev/null 2>&1; then
+  log "sing-box ${SINGBOX_VERSION} already installed, skipping"
+else
+  log "installing sing-box ${SINGBOX_VERSION}"
+  fetch "https://github.com/SagerNet/sing-box/releases/download/v${SINGBOX_VERSION}/${SINGBOX_TARBALL}" \
+    -o "${TMP}/${SINGBOX_TARBALL}"
+  echo "${SINGBOX_SHA256}  ${TMP}/${SINGBOX_TARBALL}" | sha256sum -c - \
+    || fail "sing-box checksum verification failed"
+  tar -xzf "${TMP}/${SINGBOX_TARBALL}" -C "$TMP"
+  install -m 0755 "${TMP}/sing-box-${SINGBOX_VERSION}-linux-${ARCH}/sing-box" /usr/local/bin/sing-box
+  mark_version singbox "$SINGBOX_VERSION"
+  log "installed sing-box ${SINGBOX_VERSION}"
+fi
 
 # --- nfqws2 binary (RU role only) ---
 if [ "$ROLE" = "ru" ]; then
@@ -87,23 +111,28 @@ if [ "$ROLE" = "ru" ]; then
     arm64) ZARCH="arm64";;
     *) fail "unsupported arch for nfqws2: ${ARCH}";;
   esac
-  log "installing nfqws2 ${NFQWS2_VERSION}"
-  curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/zapret-${NFQWS2_VERSION}.tar.gz" \
-    -o "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz"
-  curl -fsSL "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/sha256sum.txt" \
-    -o "${TMP}/sha256sum.txt"
-  NFQWS2_HASH="$(grep "zapret-${NFQWS2_VERSION}.tar.gz" "${TMP}/sha256sum.txt" | awk '{print $1}')"
-  [ -n "${NFQWS2_HASH}" ] || fail "nfqws2 hash not found in sha256sum.txt"
-  echo "${NFQWS2_HASH}  ${TMP}/zapret-${NFQWS2_VERSION}.tar.gz" | sha256sum -c - \
-    || fail "nfqws2 checksum verification failed"
-  TMP_NFQWS="${TMP}/nfqws_extract"
-  mkdir -p "${TMP_NFQWS}"
-  tar -xzf "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz" \
-    -C "${TMP_NFQWS}" \
-    --strip-components=3 \
-    "zapret-${NFQWS2_VERSION}/binaries/linux-${ZARCH}/nfqws"
-  install -m0755 "${TMP_NFQWS}/nfqws" /usr/local/bin/nfqws2
-  log "installed nfqws2 ${NFQWS2_VERSION}"
+  if have_version nfqws2 "$NFQWS2_VERSION" && [ -x /usr/local/bin/nfqws2 ]; then
+    log "nfqws2 ${NFQWS2_VERSION} already installed, skipping"
+  else
+    log "installing nfqws2 ${NFQWS2_VERSION}"
+    fetch "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/zapret-${NFQWS2_VERSION}.tar.gz" \
+      -o "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz"
+    fetch "https://github.com/bol-van/zapret/releases/download/${NFQWS2_VERSION}/sha256sum.txt" \
+      -o "${TMP}/sha256sum.txt"
+    NFQWS2_HASH="$(grep "zapret-${NFQWS2_VERSION}.tar.gz" "${TMP}/sha256sum.txt" | awk '{print $1}')"
+    [ -n "${NFQWS2_HASH}" ] || fail "nfqws2 hash not found in sha256sum.txt"
+    echo "${NFQWS2_HASH}  ${TMP}/zapret-${NFQWS2_VERSION}.tar.gz" | sha256sum -c - \
+      || fail "nfqws2 checksum verification failed"
+    TMP_NFQWS="${TMP}/nfqws_extract"
+    mkdir -p "${TMP_NFQWS}"
+    tar -xzf "${TMP}/zapret-${NFQWS2_VERSION}.tar.gz" \
+      -C "${TMP_NFQWS}" \
+      --strip-components=3 \
+      "zapret-${NFQWS2_VERSION}/binaries/linux-${ZARCH}/nfqws"
+    install -m0755 "${TMP_NFQWS}/nfqws" /usr/local/bin/nfqws2
+    mark_version nfqws2 "$NFQWS2_VERSION"
+    log "installed nfqws2 ${NFQWS2_VERSION}"
+  fi
 fi
 
 # --- state dir + user ---
@@ -111,13 +140,20 @@ mkdir -p "$STATE_DIR"; chmod 0700 "$STATE_DIR"
 id rdda >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin rdda
 log "state dir $STATE_DIR ready; rdda user present"
 
+# --- cloudflared config dir (EU role): created here so `rdda render cloudflared >
+# /etc/cloudflared/config.yml` in install-eu.md §6 never fails on a missing dir. ---
+if [ "$ROLE" = "eu" ]; then
+  mkdir -p /etc/cloudflared
+  log "created /etc/cloudflared (cloudflared config lands here; see install-eu.md §6)"
+fi
+
 # --- geoip-ru rule-set (RU role only): a LOCAL .srs so the RU sing-box never
 # blocks startup on a remote download. Fetched here at install time (github is
 # already required above for sing-box/nfqws); the rendered RU config points at it
 # via geoip_path. Update it by re-running the installer.
 if [ "$ROLE" = "ru" ]; then
   log "installing geoip-ru rule-set (local split-routing data)"
-  curl -fsSL "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs" \
+  fetch "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs" \
     -o "${STATE_DIR}/geoip-ru.srs" || fail "could not download geoip-ru.srs"
   chown rdda:rdda "${STATE_DIR}/geoip-ru.srs"
   chmod 0644 "${STATE_DIR}/geoip-ru.srs"
@@ -125,27 +161,27 @@ fi
 
 # --- systemd units (fetched at the resolved tag to match the binary) ---
 RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/systemd"
-curl -fsSL "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"
-curl -fsSL "${RAW}/rdda-heal.service"    -o "${UNIT_DIR}/rdda-heal.service"
-curl -fsSL "${RAW}/rdda-heal.timer"      -o "${UNIT_DIR}/rdda-heal.timer"
-curl -fsSL "${RAW}/rdda-update.service"  -o "${UNIT_DIR}/rdda-update.service"
-curl -fsSL "${RAW}/rdda-update.timer"    -o "${UNIT_DIR}/rdda-update.timer"
+fetch "${RAW}/rdda-singbox.service" -o "${UNIT_DIR}/rdda-singbox.service"
+fetch "${RAW}/rdda-heal.service"    -o "${UNIT_DIR}/rdda-heal.service"
+fetch "${RAW}/rdda-heal.timer"      -o "${UNIT_DIR}/rdda-heal.timer"
+fetch "${RAW}/rdda-update.service"  -o "${UNIT_DIR}/rdda-update.service"
+fetch "${RAW}/rdda-update.timer"    -o "${UNIT_DIR}/rdda-update.timer"
 if [ "$ROLE" = "eu" ]; then
-  curl -fsSL "${RAW}/rdda-sub.service"   -o "${UNIT_DIR}/rdda-sub.service"
-  curl -fsSL "${RAW}/rdda-alert.service" -o "${UNIT_DIR}/rdda-alert.service"
-  curl -fsSL "${RAW}/rdda-alert.timer"   -o "${UNIT_DIR}/rdda-alert.timer"
+  fetch "${RAW}/rdda-sub.service"   -o "${UNIT_DIR}/rdda-sub.service"
+  fetch "${RAW}/rdda-alert.service" -o "${UNIT_DIR}/rdda-alert.service"
+  fetch "${RAW}/rdda-alert.timer"   -o "${UNIT_DIR}/rdda-alert.timer"
 fi
 if [ "$ROLE" = "ru" ]; then
-  curl -fsSL "${RAW}/rdda-nfqws.service"  -o "${UNIT_DIR}/rdda-nfqws.service"
-  curl -fsSL "${RAW}/rdda-health.service" -o "${UNIT_DIR}/rdda-health.service"
-  curl -fsSL "${RAW}/rdda-health.timer"   -o "${UNIT_DIR}/rdda-health.timer"
+  fetch "${RAW}/rdda-nfqws.service"  -o "${UNIT_DIR}/rdda-nfqws.service"
+  fetch "${RAW}/rdda-health.service" -o "${UNIT_DIR}/rdda-health.service"
+  fetch "${RAW}/rdda-health.timer"   -o "${UNIT_DIR}/rdda-health.timer"
 fi
 systemctl daemon-reload
 systemctl enable --now rdda-heal.timer
 log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
 if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
-  curl -fsSL "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
+  fetch "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
   systemctl enable --now rdda-nfqws
   systemctl enable --now rdda-health.timer
 fi

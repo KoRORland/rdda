@@ -159,13 +159,25 @@ use `--force` if you already ran init in step 2):
 
 ### 6.4 Write the cloudflared config
 
+The EU installer already created `/etc/cloudflared`; if you're on an older
+installer, create it first so the redirect below doesn't fail on a missing dir:
+
+    sudo mkdir -p /etc/cloudflared
     rdda render cloudflared > /etc/cloudflared/config.yml
-    chmod 600 /etc/cloudflared/config.yml
+    sudo chmod 600 /etc/cloudflared/config.yml
 
 ### 6.5 Create DNS routes
 
     cloudflared tunnel route dns rdda <tunnel-hostname>.example.com
     cloudflared tunnel route dns rdda <sub-hostname>.example.com
+
+Each command must log `Added CNAME <host> which will route to this tunnel
+tunnelID=<...>`. **If a hostname already has a DNS record** (e.g. you reused an
+existing subdomain), `route dns` fails/no-ops and the name keeps serving its old
+origin — delete the existing record in the Cloudflare dashboard, then re-run.
+Confirm each host actually reaches the sub server (JSON, not a stale page):
+
+    curl -s "https://<sub-hostname>.example.com/ru/config?token=<PULL_TOKEN>" | head -c 40   # expect: {"…
 
 ### 6.6 Create the cloudflared system user and enable the service
 
@@ -185,3 +197,10 @@ With all traffic routed through cloudflared, close every inbound port except SSH
     sudo ufw status
 
 Verify the tunnel is up: `cloudflared tunnel info rdda`.
+
+> **Cloud security groups (AWS / GCP / Azure / …):** the provider's security group
+> is a separate network layer *outside* `ufw`. With Cloudflare fronting, the EU node
+> needs **no inbound ports except SSH** — so deny inbound 443 at the security group
+> too. Only the direct (non-Cloudflare) fallback needs inbound 443 opened in the
+> security group; a missing rule there shows up as a silent `i/o timeout` from the
+> RU node even though `ufw` and the service look healthy.
