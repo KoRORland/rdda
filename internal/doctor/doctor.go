@@ -3,6 +3,8 @@ package doctor
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -35,7 +37,7 @@ type Check struct {
 type Doctor struct {
 	dir        string
 	unitActive func(unit string) bool
-	httpProbe  func(probeURL string) (code int, notAfter time.Time, err error)
+	httpProbe  func(probeURL string) (code int, body []byte, notAfter time.Time, err error)
 	dialDest   func(host string, port int) error
 	egress     func(singboxConfig []byte, probeURL string) (ok bool, err error)
 	cfInfo     func(tunnelID string) (connectors int, err error)
@@ -90,14 +92,16 @@ func (d *Doctor) runRU(probeURL string) []Check {
 	if from == "" {
 		cs = append(cs, Check{"control channel", WARN, "pull not configured (/etc/rdda/pull.env)", ""})
 	} else {
-		code, _, err := d.httpProbe(withToken(from, token))
+		code, body, _, err := d.httpProbe(withToken(from, token))
 		switch {
 		case err != nil:
 			cs = append(cs, Check{"control channel", FAIL, fmt.Sprintf("%s: %v", from, err), "check Cloudflare/cloudflared and the EU sub server"})
 		case code != 200:
 			cs = append(cs, Check{"control channel", FAIL, fmt.Sprintf("%s → %d", from, code), "token mismatch or sub-server error"})
+		case !isConfigJSON(body):
+			cs = append(cs, Check{"control channel", FAIL, fmt.Sprintf("%s → 200 but not the RU config", from), "hostname not routed to the tunnel (stale/conflicting DNS record?) — it's serving a wrong origin"})
 		default:
-			cs = append(cs, Check{"control channel", PASS, fmt.Sprintf("%s → 200", from), ""})
+			cs = append(cs, Check{"control channel", PASS, fmt.Sprintf("%s → 200 (config)", from), ""})
 		}
 	}
 
@@ -170,14 +174,16 @@ func (d *Doctor) runEU() []Check {
 		cs = append(cs, Check{"sub endpoint", WARN, "Cloudflare sub endpoint not configured", ""})
 	} else {
 		u := "https://" + cfg.Cloudflare.SubHostname + "/ru/config"
-		code, notAfter, err := d.httpProbe(withToken(u, cfg.PullToken))
+		code, body, notAfter, err := d.httpProbe(withToken(u, cfg.PullToken))
 		switch {
 		case err != nil:
 			cs = append(cs, Check{"sub endpoint", FAIL, fmt.Sprintf("%s: %v", u, err), "check the Cloudflare tunnel + rdda-sub"})
 		case code != 200:
 			cs = append(cs, Check{"sub endpoint", FAIL, fmt.Sprintf("%s → %d", u, code), "token mismatch or sub-server error"})
+		case !isConfigJSON(body):
+			cs = append(cs, Check{"sub endpoint", FAIL, fmt.Sprintf("%s → 200 but not the RU config", u), "sub host isn't routed to this tunnel (stale/conflicting DNS record?) — cloudflared tunnel route dns, delete any old record first"})
 		default:
-			cs = append(cs, Check{"sub endpoint", PASS, fmt.Sprintf("%s → 200", u), ""})
+			cs = append(cs, Check{"sub endpoint", PASS, fmt.Sprintf("%s → 200 (config)", u), ""})
 		}
 		if !notAfter.IsZero() && d.now().Add(30*24*time.Hour).After(notAfter) {
 			cs = append(cs, Check{"cert expiry", WARN, "TLS cert expires " + notAfter.Format("2006-01-02"), "renew the public TLS cert"})
@@ -217,6 +223,15 @@ func withToken(rawURL, token string) string {
 	q.Set("token", token)
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// isConfigJSON reports whether body is a JSON object — the shape /ru/config
+// serves. It's the guard against a hostname that answers 200 from the wrong
+// origin (e.g. a stale "Hello World!" page) because its DNS route never reached
+// the tunnel: status alone can't tell that apart, the body can.
+func isConfigJSON(body []byte) bool {
+	t := bytes.TrimSpace(body)
+	return len(t) > 0 && t[0] == '{' && json.Valid(t)
 }
 
 // readPullEnv parses RDDA_PULL_FROM + RDDA_PULL_TOKEN from <dir>/pull.env.

@@ -32,15 +32,18 @@ func realDialDest(host string, port int) error {
 	return conn.Close()
 }
 
-// realHTTPProbe GETs probeURL and returns the status code + the served leaf
-// cert's NotAfter (zero for plaintext).
-func realHTTPProbe(probeURL string) (int, time.Time, error) {
+// realHTTPProbe GETs probeURL and returns the status code, the (capped) response
+// body, and the served leaf cert's NotAfter (zero for plaintext). The body lets
+// callers confirm they reached the intended origin, not just that *something*
+// answered 200.
+func realHTTPProbe(probeURL string) (int, []byte, time.Time, error) {
 	client := &http.Client{Timeout: 12 * time.Second}
 	resp, err := client.Get(probeURL)
 	if err != nil {
-		return 0, time.Time{}, err
+		return 0, nil, time.Time{}, err
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	var notAfter time.Time
 	if resp.TLS != nil {
 		for _, c := range resp.TLS.PeerCertificates {
@@ -50,7 +53,7 @@ func realHTTPProbe(probeURL string) (int, time.Time, error) {
 			}
 		}
 	}
-	return resp.StatusCode, notAfter, nil
+	return resp.StatusCode, body, notAfter, nil
 }
 
 func leafNotAfter(c *x509.Certificate) time.Time { return c.NotAfter }
