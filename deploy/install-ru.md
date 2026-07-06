@@ -79,45 +79,35 @@ The pull-sync timer runs `rdda pull` every ~5 minutes, fetching the latest
 sing-box config from the EU subscription endpoint and reloading sing-box if the config
 changed. This replaces the manual `render ru` + copy workflow.
 
-### 4.1 Write the pull environment file
+### 4.1 Write the control-channel environment file
 
-On the **EU** node, look up the pull token:
+The pull/health units, the `/etc/sudoers.d/rdda-reload` grant, and the sudoers
+validation are all handled by the installer. Only the token-bearing `pull.env`
+is left, because it needs the EU pull token — and `rdda control-channel init`
+writes it for you (deriving both endpoint URLs from the sub host):
 
-    grep pull_token /etc/rdda/config.yaml
+On the **EU** node, print the exact command to run on RU:
 
-Then on the **RU** node (via the provider console):
+    rdda control-channel show
 
-    sudo tee /etc/rdda/pull.env > /dev/null <<'EOF'
-    RDDA_PULL_FROM=https://<cf-sub-host>/ru/config
-    RDDA_PULL_TOKEN=<pull_token from EU config.yaml>
-    RDDA_HEALTH_TO=https://<cf-sub-host>/ru/health
-    EOF
-    sudo chmod 600 /etc/rdda/pull.env
-    sudo chown rdda:rdda /etc/rdda/pull.env
+That prints, ready to paste on the **RU** node (via the provider console):
 
-Replace `<cf-sub-host>` with the Cloudflare sub hostname configured on the EU
-node (e.g. `sub.example.com`).
+    rdda control-channel init --sub-host <cf-sub-host> --token <pull_token>
 
-### 4.2 Grant rdda permission to reload sing-box
+`init` writes `/etc/rdda/pull.env` (0600, owned by `rdda`) with
+`RDDA_PULL_FROM`, `RDDA_HEALTH_TO`, and `RDDA_PULL_TOKEN`. Replace
+`<cf-sub-host>` with the Cloudflare sub hostname configured on the EU node
+(e.g. `sub.example.com`).
 
-The pull service runs as the `rdda` user but needs to call
-`systemctl reload-or-restart rdda-singbox` after a config change. Create a
-sudoers drop-in:
+### 4.2 Enable the timers
 
-    sudo tee /etc/sudoers.d/rdda-reload > /dev/null <<'EOF'
-    rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-singbox
-    EOF
-    sudo chmod 440 /etc/sudoers.d/rdda-reload
-    sudo visudo -c   # validate syntax
+The installer already staged `rdda-pull.{service,timer}` and
+`rdda-health.{service,timer}` but left them stopped (they need the `pull.env`
+from step 4.1). Enable both now:
 
-### 4.3 Install and enable the timer
+    sudo systemctl enable --now rdda-pull.timer rdda-health.timer
 
-    sudo cp deploy/systemd/rdda-pull.service /etc/systemd/system/
-    sudo cp deploy/systemd/rdda-pull.timer   /etc/systemd/system/
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now rdda-pull.timer
-
-### 4.4 Verify
+### 4.3 Verify
 
 Trigger the first pull immediately and check its status:
 
@@ -127,9 +117,10 @@ Trigger the first pull immediately and check its status:
 A successful run exits 0 and logs the fetch URL. The RU node no longer needs
 a manual `render ru` copy — the timer keeps `/etc/rdda/singbox.json` in sync.
 
-## 5. Health beat (`rdda-health.timer`) — enabled by the installer
+## 5. Health beat (`rdda-health.timer`) — enabled with the control channel
 
-The installer enables `rdda-health.timer` on the RU node automatically. The timer
+The installer stages `rdda-health.timer` but leaves it stopped until `pull.env`
+exists; you enable it in step 4.2 alongside `rdda-pull.timer`. The timer
 fires at a **randomized interval (1–10 minutes, with random padding)** to avoid a
 predictable beacon signal: each beat sends a short POST to `RDDA_HEALTH_TO` (set
 in `/etc/rdda/pull.env`), which is the EU node's `/ru/health` endpoint behind the

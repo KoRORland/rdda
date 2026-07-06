@@ -175,6 +175,8 @@ if [ "$ROLE" = "ru" ]; then
   fetch "${RAW}/rdda-nfqws.service"  -o "${UNIT_DIR}/rdda-nfqws.service"
   fetch "${RAW}/rdda-health.service" -o "${UNIT_DIR}/rdda-health.service"
   fetch "${RAW}/rdda-health.timer"   -o "${UNIT_DIR}/rdda-health.timer"
+  fetch "${RAW}/rdda-pull.service"   -o "${UNIT_DIR}/rdda-pull.service"
+  fetch "${RAW}/rdda-pull.timer"     -o "${UNIT_DIR}/rdda-pull.timer"
 fi
 systemctl daemon-reload
 systemctl enable --now rdda-heal.timer
@@ -183,7 +185,23 @@ if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
   fetch "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
   systemctl enable --now rdda-nfqws
-  systemctl enable --now rdda-health.timer
+  # --- control-channel reload grant: let the rdda service user (which runs
+  # rdda-pull) restart its own sing-box after a successful config pull, and
+  # nothing else. Written via a temp file + visudo -c so a syntax error can
+  # never wedge sudo. ---
+  SUDOERS_TMP="$(mktemp)"
+  printf 'rdda ALL=(root) NOPASSWD: /usr/bin/systemctl reload-or-restart rdda-singbox\n' > "$SUDOERS_TMP"
+  if visudo -cf "$SUDOERS_TMP" >/dev/null 2>&1; then
+    install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/rdda-reload
+    log "installed /etc/sudoers.d/rdda-reload (rdda may reload-or-restart rdda-singbox)"
+  else
+    warn "sudoers rule failed validation; skipped (post-pull auto-reload will need manual sudo grant)"
+  fi
+  rm -f "$SUDOERS_TMP"
+  # rdda-pull.timer / rdda-health.timer are NOT started here: they need
+  # /etc/rdda/pull.env, which `rdda control-channel init` writes. Starting them
+  # now would just fail on the missing EnvironmentFile (the G4 false-failure).
+  log "control-channel timers staged; enable them after 'rdda control-channel init' (see next steps)"
 fi
 if [ "$ROLE" = "eu" ]; then
   systemctl enable --now rdda-alert.timer
@@ -234,5 +252,9 @@ else
   2. Copy that output to this RU node's /etc/rdda/singbox.json
   3. chown -R rdda:rdda /etc/rdda
   4. systemctl enable --now rdda-singbox
+  5. Bring up the control channel (pull-sync + health beat):
+       # on EU:  rdda control-channel show      # prints the command below
+       rdda control-channel init --sub-host <EU_SUB_HOST> --token <PULL_TOKEN>
+       systemctl enable --now rdda-pull.timer rdda-health.timer
 EOF
 fi
