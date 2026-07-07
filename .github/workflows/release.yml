@@ -41,3 +41,15 @@ jobs:
             dist/rdda-linux-amd64
             dist/rdda-linux-arm64
             dist/SHA256SUMS
+
+  # Post-publish: prove a user on the PREVIOUS release can `rdda update` to this
+  # one, against the real published assets. Exercises the download+retry,
+  # checksum, atomic swap, version self-check, "restart only an existing unit"
+  # (a bare runner has no rdda-sub — the RU-node shape), and rollback paths.
+  update-smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: install previous release, then rdda update to this tag
+        run: sudo test/update-smoke.sh "${GITHUB_REF_NAME}" amd64

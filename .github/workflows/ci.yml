@@ -18,16 +18,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: shellcheck install.sh
+      - name: shellcheck install.sh + test scripts
         run: |
           set -euo pipefail
-          if [ -f install.sh ]; then
-            sudo apt-get update && sudo apt-get install -y shellcheck
-            shellcheck install.sh
-            bash -n install.sh
-          else
-            echo "install.sh not present yet; skipping"
-          fi
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          for f in install.sh test/update-smoke.sh; do
+            if [ -f "$f" ]; then
+              echo "== shellcheck $f =="
+              shellcheck "$f"
+              bash -n "$f"
+            fi
+          done
   release-dryrun:
     runs-on: ubuntu-24.04
     steps:
