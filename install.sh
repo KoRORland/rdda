@@ -184,7 +184,10 @@ log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
 if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
   fetch "${RAW_NFT}/rdda-nfqws.nft" -o "${STATE_DIR}/rdda-nfqws.nft"
-  systemctl enable --now rdda-nfqws
+  # nfqws2 is OPT-IN (default off): as shipped it queues the node's own :443
+  # egress, and a mis-set profile breaks the tunnel/decoy path. Staged but not
+  # started — enable only after validating a desync profile against the tunnel.
+  log "rdda-nfqws staged (opt-in / default off); enable with: systemctl enable --now rdda-nfqws"
   # --- control-channel reload grant: let the rdda service user (which runs
   # rdda-pull) restart its own sing-box after a successful config pull, and
   # nothing else. Written via a temp file + visudo -c so a syntax error can

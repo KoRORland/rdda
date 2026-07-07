@@ -1,8 +1,18 @@
 table inet rdda_nfqws {
   chain postrouting {
     type filter hook postrouting priority mangle; policy accept;
-    # Queue only the RU node's own outbound TLS handshakes for nfqws2 desync.
-    # queue-bypass = fail-open: if nfqws2 is down, packets pass unmodified.
+
+    # Never desync loopback or private/link-local egress: on a CF-fronted node
+    # the loopback carries the EU sing-box and cloudflared, and there is no DPI
+    # on those paths — queuing them only risks breaking the control plane.
+    ip  daddr { 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 } accept
+    ip6 daddr { ::1, fe80::/10, fc00::/7 } accept
+
+    # Queue the RU node's own outbound TLS ClientHello for nfqws2 desync. Pair
+    # with a fooling method (--dpi-desync-fooling, see rdda-nfqws.service) so the
+    # fake packet dies before the real server and unblocked/tunnel handshakes
+    # still complete. queue-bypass = fail-open: if nfqws2 is down, packets pass
+    # unmodified so egress is never wedged by a dead desync daemon.
     meta l4proto tcp tcp dport 443 ct state new,established \
       queue num 200 bypass
   }

@@ -300,11 +300,7 @@ func newRenderCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			profile := cfg.Desync.Profile
-			if profile == "" {
-				profile = "fake,split2"
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "--qnum=200 --dpi-desync=%s\n", profile)
+			fmt.Fprintln(cmd.OutOrStdout(), cfg.Desync.NfqwsArgs())
 			return nil
 		},
 	})

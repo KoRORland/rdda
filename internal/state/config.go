@@ -3,6 +3,7 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -32,6 +33,11 @@ type Cloudflare struct {
 type Desync struct {
 	Enabled bool   `yaml:"enabled"`
 	Profile string `yaml:"profile"`
+	// Fooling is the nfqws2 --dpi-desync-fooling method (e.g. badsum, md5sig).
+	// Without it the injected fake packet reaches the real server and corrupts
+	// every TLS handshake — including to unblocked hosts and the tunnel/decoy —
+	// which is exactly what broke the RU node in the field. Defaults to badsum.
+	Fooling string `yaml:"fooling"`
 	Ports   []int  `yaml:"ports"`
 }
 
@@ -109,6 +115,22 @@ func (s *Store) LoadConfig() (Config, error) {
 
 // CFEnabled reports whether the RU→EU hop should go through Cloudflare.
 func (c Config) CFEnabled() bool { return c.Cloudflare.TunnelHostname != "" }
+
+// NfqwsArgs returns the nfqws2 command-line flags for the RU node, always
+// including a fooling method so the desync never breaks unblocked-host or
+// tunnel handshakes (the G2 field failure). Profile and fooling fall back to
+// safe defaults.
+func (d Desync) NfqwsArgs() string {
+	profile := d.Profile
+	if profile == "" {
+		profile = "fake,split2"
+	}
+	fooling := d.Fooling
+	if fooling == "" {
+		fooling = "badsum"
+	}
+	return fmt.Sprintf("--qnum=200 --dpi-desync=%s --dpi-desync-fooling=%s", profile, fooling)
+}
 
 // FP returns the uTLS fingerprint to mimic; defaults to a non-Chrome profile
 // (mimicking Chrome is itself a DPI flag under the June-2026 scheme).

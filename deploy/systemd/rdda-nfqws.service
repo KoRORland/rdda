@@ -4,9 +4,12 @@ After=network-online.target rdda-singbox.service
 Wants=network-online.target
 
 [Service]
-# Desync flags default to fake,split2; run 'rdda render nfqws' to see the configured profile.
+# Flags MUST match `rdda render nfqws` (profile + a fooling method). The
+# --dpi-desync-fooling=badsum is load-bearing: without it the injected fake
+# packet reaches the real server and corrupts every TLS handshake, including
+# unblocked hosts and the RU→EU tunnel. Re-render if you change the profile.
 ExecStartPre=/usr/sbin/nft -f /etc/rdda/rdda-nfqws.nft
-ExecStart=/usr/local/bin/nfqws2 --qnum=200 --dpi-desync=fake,split2
+ExecStart=/usr/local/bin/nfqws2 --qnum=200 --dpi-desync=fake,split2 --dpi-desync-fooling=badsum
 ExecStopPost=-/usr/sbin/nft delete table inet rdda_nfqws
 Restart=on-failure
 RestartSec=3

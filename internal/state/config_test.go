@@ -1,6 +1,7 @@
 package state
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -103,5 +104,21 @@ func TestAlertRoundTrip(t *testing.T) {
 	}
 	if !got.Alert.Enabled || got.Alert.Email != "ops@x" || got.Alert.Command != "msmtp" || got.Alert.CertWarnDays != 7 {
 		t.Fatalf("alert round-trip: %+v", got.Alert)
+	}
+}
+
+func TestNfqwsArgs_AlwaysHasFooling(t *testing.T) {
+	// Defaults: a fooling method must always be present (the G2 fix).
+	got := Desync{}.NfqwsArgs()
+	if !strings.Contains(got, "--dpi-desync-fooling=badsum") {
+		t.Errorf("default args missing fooling method: %q", got)
+	}
+	if !strings.Contains(got, "--dpi-desync=fake,split2") {
+		t.Errorf("default args missing profile: %q", got)
+	}
+	// Custom profile + fooling are honoured; fooling is never dropped.
+	custom := Desync{Profile: "fakedsplit", Fooling: "md5sig"}.NfqwsArgs()
+	if !strings.Contains(custom, "--dpi-desync=fakedsplit") || !strings.Contains(custom, "--dpi-desync-fooling=md5sig") {
+		t.Errorf("custom args wrong: %q", custom)
 	}
 }
