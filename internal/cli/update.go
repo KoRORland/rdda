@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/KoRORland/rdda/internal/selfupdate"
+	"github.com/KoRORland/rdda/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +18,7 @@ type updater interface {
 
 var newUpdater = func(current string) updater { return selfupdate.New(current) }
 
-func newUpdateCmd() *cobra.Command {
+func newUpdateCmd(dir *string) *cobra.Command {
 	var check, rollback bool
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -50,6 +51,10 @@ func newUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Normalize state-dir ownership on every update: a root-run
+			// `rdda client add` can leave a root-owned client file the rdda
+			// service user can't read (an opaque sub-server 500). Best-effort.
+			normalizeStateOwnership(cmd, *dir)
 			if from == to {
 				fmt.Fprintf(cmd.OutOrStdout(), "already at %s\n", to)
 			} else {
@@ -61,4 +66,17 @@ func newUpdateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&check, "check", false, "report installed vs latest version; make no changes")
 	cmd.Flags().BoolVar(&rollback, "rollback", false, "restore the previous binary (rdda.prev)")
 	return cmd
+}
+
+// normalizeStateOwnership best-effort chowns the state dir back to the rdda
+// service user. Failures are warned, not fatal — the binary update already
+// succeeded and this is a hygiene step.
+func normalizeStateOwnership(cmd *cobra.Command, dir string) {
+	s, err := state.Open(dir)
+	if err != nil {
+		return
+	}
+	if err := s.ChownTree(); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not normalize %s ownership to rdda: %v\n", dir, err)
+	}
 }

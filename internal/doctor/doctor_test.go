@@ -40,6 +40,7 @@ func fakeDoctor(dir string) *Doctor {
 	d.cfInfo = func(string) (int, error) { return 2, nil }
 	d.svcUser = func() (int, int, error) { return 1000, 1000, nil }
 	d.statFile = func(string) (int, int, fs.FileMode, error) { return 1000, 1000, 0o600, nil }
+	d.dirFiles = func(string) []string { return nil }
 	d.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
 	return d
 }

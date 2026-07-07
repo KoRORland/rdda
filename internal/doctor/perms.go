@@ -29,24 +29,45 @@ func serviceUserCanRead(fUID, fGID int, mode fs.FileMode, svcUID, svcGID int) bo
 // files. This catches the field foot-gun where a root-owned (or mis-chowned)
 // singbox.json / pull.env left rdda-singbox crash-looping with "permission
 // denied" — a failure that looked like a config bug, not an ownership one.
-func (d *Doctor) permsCheck(files ...string) Check {
+func (d *Doctor) permsCheck(entries ...string) Check {
 	uid, gid, err := d.svcUser()
 	if err != nil {
 		return Check{"permissions", WARN, "rdda service user not found; cannot verify state-dir ownership", ""}
 	}
-	for _, f := range files {
-		path := filepath.Join(d.dir, f)
-		fuid, fgid, mode, err := d.statFile(path)
-		if err != nil {
-			continue // absent files are reported by the checks that need them
-		}
-		if !serviceUserCanRead(fuid, fgid, mode, uid, gid) {
-			return Check{"permissions", FAIL,
-				fmt.Sprintf("%s not readable by the rdda service user", path),
-				"sudo chown rdda:rdda " + path + "  (a root-owned config crash-loops rdda-singbox)"}
+	for _, e := range entries {
+		base := filepath.Join(d.dir, e)
+		// Expand a directory (e.g. clients/) to its files: a single root-owned
+		// client file the rdda user can't read is exactly what makes the sub
+		// server 500, and it lives inside a dir, not at a fixed path.
+		for _, path := range append([]string{base}, d.dirFiles(base)...) {
+			fuid, fgid, mode, err := d.statFile(path)
+			if err != nil {
+				continue // absent files are reported by the checks that need them
+			}
+			if !serviceUserCanRead(fuid, fgid, mode, uid, gid) {
+				return Check{"permissions", FAIL,
+					fmt.Sprintf("%s not readable by the rdda service user", path),
+					"sudo chown -R rdda:rdda " + d.dir + "  (a root-owned file 500s the sub server / crash-loops sing-box)"}
+			}
 		}
 	}
 	return Check{"permissions", PASS, "state files readable by the rdda service user", ""}
+}
+
+// realDirFiles lists the immediate (non-dir) files inside path, or nil if path
+// isn't a readable directory.
+func realDirFiles(path string) []string {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			out = append(out, filepath.Join(path, e.Name()))
+		}
+	}
+	return out
 }
 
 func realServiceUser() (int, int, error) {

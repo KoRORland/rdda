@@ -51,28 +51,28 @@ type Alert struct {
 
 // Config is the full RDDA deployment description (the EU source of truth).
 type Config struct {
-	RUHost           string     `yaml:"ru_host"`
-	RUPort           int        `yaml:"ru_port"`
-	EUHost           string     `yaml:"eu_host"`
-	EUPort           int        `yaml:"eu_port"`
-	ClientPath       string     `yaml:"client_path"`
-	TunnelPath       string     `yaml:"tunnel_path"`
-	TunnelUUID       string     `yaml:"tunnel_uuid"`
-	SubBaseURL       string     `yaml:"sub_base_url"`
-	IntlAllowDomains []string   `yaml:"intl_allow_domains"`
+	RUHost           string   `yaml:"ru_host"`
+	RUPort           int      `yaml:"ru_port"`
+	EUHost           string   `yaml:"eu_host"`
+	EUPort           int      `yaml:"eu_port"`
+	ClientPath       string   `yaml:"client_path"`
+	TunnelPath       string   `yaml:"tunnel_path"`
+	TunnelUUID       string   `yaml:"tunnel_uuid"`
+	SubBaseURL       string   `yaml:"sub_base_url"`
+	IntlAllowDomains []string `yaml:"intl_allow_domains"`
 	// GeoIPPath is the local path to the geoip-ru rule-set (.srs) on the RU node.
 	// When set, RU split-routes domestic (RU) IPs direct and tunnels the rest. It
 	// is a LOCAL file (shipped at install time) so the RU data plane never blocks
 	// startup on a remote download. Empty disables geoip split-routing (all
 	// traffic goes through the EU tunnel — safe, just less efficient).
-	GeoIPPath string `yaml:"geoip_path"`
-	ClientReality    Reality    `yaml:"client_reality"`
-	TunnelReality    Reality    `yaml:"tunnel_reality"`
-	Cloudflare       Cloudflare `yaml:"cloudflare"`
-	PullToken        string     `yaml:"pull_token"`
-	Fingerprint      string     `yaml:"fingerprint"`
-	Desync           Desync     `yaml:"desync"`
-	Alert            Alert      `yaml:"alert"`
+	GeoIPPath     string     `yaml:"geoip_path"`
+	ClientReality Reality    `yaml:"client_reality"`
+	TunnelReality Reality    `yaml:"tunnel_reality"`
+	Cloudflare    Cloudflare `yaml:"cloudflare"`
+	PullToken     string     `yaml:"pull_token"`
+	Fingerprint   string     `yaml:"fingerprint"`
+	Desync        Desync     `yaml:"desync"`
+	Alert         Alert      `yaml:"alert"`
 }
 
 // Store is a directory-backed RDDA state store.

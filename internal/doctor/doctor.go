@@ -44,6 +44,7 @@ type Doctor struct {
 	cfInfo     func(tunnelID string) (connectors int, err error)
 	svcUser    func() (uid, gid int, err error)
 	statFile   func(path string) (uid, gid int, mode fs.FileMode, err error)
+	dirFiles   func(path string) []string
 	now        func() time.Time
 }
 
@@ -58,6 +59,7 @@ func New(dir string) *Doctor {
 		cfInfo:     realCloudflaredInfo,
 		svcUser:    realServiceUser,
 		statFile:   realStatFile,
+		dirFiles:   realDirFiles,
 		now:        time.Now,
 	}
 }
@@ -176,7 +178,7 @@ func (d *Doctor) runEU() []Check {
 		cs = append(cs, Check{"config", PASS, "render ru/eu OK", ""})
 	}
 
-	cs = append(cs, d.permsCheck("singbox.json", "config.yaml"))
+	cs = append(cs, d.permsCheck("singbox.json", "config.yaml", "clients"))
 
 	if cfg.Cloudflare.SubHostname == "" || cfg.PullToken == "" {
 		cs = append(cs, Check{"sub endpoint", WARN, "Cloudflare sub endpoint not configured", ""})

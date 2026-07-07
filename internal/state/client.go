@@ -77,6 +77,10 @@ func (s *Store) AddClientWithFingerprint(name, fingerprint string) (Client, erro
 	if err := os.WriteFile(path, b, 0o600); err != nil {
 		return Client{}, err
 	}
+	// `rdda client add` is run by the operator (root); without this the new file
+	// is root-owned 0600 and the rdda-sub service user (User=rdda) can't read it,
+	// so /ru/config and /sub/ 500 until a manual chown. Fix it at the source.
+	chownToService(path)
 	return c, nil
 }
 

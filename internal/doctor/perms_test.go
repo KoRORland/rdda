@@ -49,8 +49,33 @@ func TestPermsCheck_RootOwnedConfigFails(t *testing.T) {
 	if c.Status != FAIL {
 		t.Fatalf("root-owned singbox.json must FAIL, got %v (%q)", c.Status, c.Detail)
 	}
-	if !strings.Contains(c.Hint, "chown rdda:rdda") {
+	if !strings.Contains(c.Hint, "chown -R rdda:rdda") {
 		t.Errorf("hint should point at chown, got %q", c.Hint)
+	}
+}
+
+// A root-owned client file inside clients/ must FAIL — that's the incident that
+// 500'd the EU sub server while singbox.json/config.yaml were fine.
+func TestPermsCheck_RootOwnedClientFileFails(t *testing.T) {
+	d := fakeDoctor(t.TempDir())
+	d.dirFiles = func(path string) []string {
+		if filepath.Base(path) == "clients" {
+			return []string{filepath.Join(path, "manya.json")}
+		}
+		return nil
+	}
+	d.statFile = func(path string) (int, int, fs.FileMode, error) {
+		if filepath.Base(path) == "manya.json" {
+			return 0, 0, 0o600, nil // root:root 0600 → rdda (1000) can't read
+		}
+		return 1000, 1000, 0o600, nil
+	}
+	c := d.permsCheck("singbox.json", "config.yaml", "clients")
+	if c.Status != FAIL {
+		t.Fatalf("root-owned client file must FAIL, got %v (%q)", c.Status, c.Detail)
+	}
+	if !strings.Contains(c.Detail, "manya.json") {
+		t.Errorf("detail should name the offending file: %q", c.Detail)
 	}
 }
 

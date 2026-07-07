@@ -9,11 +9,11 @@ func sampleConfig() Config {
 		RUHost: "ru.example.net", RUPort: 443,
 		EUHost: "eu.example.net", EUPort: 443,
 		ClientPath: "/cl", TunnelPath: "/tn",
-		TunnelUUID: "11111111-1111-4111-8111-111111111111",
-		SubBaseURL: "https://eu.example.net",
+		TunnelUUID:       "11111111-1111-4111-8111-111111111111",
+		SubBaseURL:       "https://eu.example.net",
 		IntlAllowDomains: []string{"wikipedia.org"},
-		ClientReality: Reality{Target: "www.microsoft.com:443", ServerName: "www.microsoft.com", PrivateKey: "priv1", PublicKey: "pub1", ShortIDs: []string{"0011"}},
-		TunnelReality: Reality{Target: "www.apple.com:443", ServerName: "www.apple.com", PrivateKey: "priv2", PublicKey: "pub2", ShortIDs: []string{"0022"}},
+		ClientReality:    Reality{Target: "www.microsoft.com:443", ServerName: "www.microsoft.com", PrivateKey: "priv1", PublicKey: "pub1", ShortIDs: []string{"0011"}},
+		TunnelReality:    Reality{Target: "www.apple.com:443", ServerName: "www.apple.com", PrivateKey: "priv2", PublicKey: "pub2", ShortIDs: []string{"0022"}},
 	}
 }
 
