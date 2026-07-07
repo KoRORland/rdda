@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,8 @@ func fakeDoctor(dir string) *Doctor {
 	d.httpProbe = func(string) (int, []byte, time.Time, error) { return 200, []byte(`{"outbounds":[]}`), time.Time{}, nil }
 	d.egress = func([]byte, string) (bool, error) { return true, nil }
 	d.cfInfo = func(string) (int, error) { return 2, nil }
+	d.svcUser = func() (int, int, error) { return 1000, 1000, nil }
+	d.statFile = func(string) (int, int, fs.FileMode, error) { return 1000, 1000, 0o600, nil }
 	d.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
 	return d
 }

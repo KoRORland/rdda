@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -41,6 +42,8 @@ type Doctor struct {
 	dialDest   func(host string, port int) error
 	egress     func(singboxConfig []byte, probeURL string) (ok bool, err error)
 	cfInfo     func(tunnelID string) (connectors int, err error)
+	svcUser    func() (uid, gid int, err error)
+	statFile   func(path string) (uid, gid int, mode fs.FileMode, err error)
 	now        func() time.Time
 }
 
@@ -53,6 +56,8 @@ func New(dir string) *Doctor {
 		dialDest:   realDialDest,
 		egress:     realEgress,
 		cfInfo:     realCloudflaredInfo,
+		svcUser:    realServiceUser,
+		statFile:   realStatFile,
 		now:        time.Now,
 	}
 }
@@ -106,6 +111,7 @@ func (d *Doctor) runRU(probeURL string) []Check {
 	}
 
 	cs = append(cs, d.lastPullCheck())
+	cs = append(cs, d.permsCheck("singbox.json", "pull.env"))
 
 	switch {
 	case sbErr != nil:
@@ -169,6 +175,8 @@ func (d *Doctor) runEU() []Check {
 	} else {
 		cs = append(cs, Check{"config", PASS, "render ru/eu OK", ""})
 	}
+
+	cs = append(cs, d.permsCheck("singbox.json", "config.yaml"))
 
 	if cfg.Cloudflare.SubHostname == "" || cfg.PullToken == "" {
 		cs = append(cs, Check{"sub endpoint", WARN, "Cloudflare sub endpoint not configured", ""})
