@@ -37,6 +37,21 @@ func TestClientOutbound(t *testing.T) {
 	}
 }
 
+// A client's own fingerprint must drive the client→RU uTLS, overriding the node
+// default — that's what makes the fleet fingerprint-diverse.
+func TestClientOutbound_UsesClientFingerprint(t *testing.T) {
+	b, err := ClientOutbound(cfg(), state.Client{UUID: "u", Name: "granny", Fingerprint: "safari"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var o map[string]any
+	_ = json.Unmarshal(b, &o)
+	got := o["tls"].(map[string]any)["utls"].(map[string]any)["fingerprint"]
+	if got != "safari" {
+		t.Fatalf("expected client fingerprint safari, got %v (node default was firefox)", got)
+	}
+}
+
 func TestBuildIsFullConfig(t *testing.T) {
 	s, err := Build(cfg(), state.Client{UUID: "uuid-9", Name: "granny"})
 	if err != nil {

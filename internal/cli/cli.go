@@ -9,10 +9,10 @@ import (
 	"github.com/KoRORland/rdda/internal/cfconfig"
 	"github.com/KoRORland/rdda/internal/keys"
 	"github.com/KoRORland/rdda/internal/pull"
-	"github.com/KoRORland/rdda/internal/state"
-	"github.com/KoRORland/rdda/internal/subserver"
-	"github.com/KoRORland/rdda/internal/subscription"
 	"github.com/KoRORland/rdda/internal/singboxconf"
+	"github.com/KoRORland/rdda/internal/state"
+	"github.com/KoRORland/rdda/internal/subscription"
+	"github.com/KoRORland/rdda/internal/subserver"
 	"github.com/spf13/cobra"
 )
 
@@ -90,7 +90,7 @@ func newInitCmd(dir *string) *cobra.Command {
 			cfg := state.Config{
 				RUHost: ruHost, RUPort: 443, EUHost: euHost, EUPort: 443,
 				Fingerprint: fp,
-				ClientPath: "/cl", TunnelPath: "/tn",
+				ClientPath:  "/cl", TunnelPath: "/tn",
 				TunnelUUID: keys.NewUUID(),
 				SubBaseURL: "https://" + euHost,
 				GeoIPPath:  geoipPath,
@@ -135,6 +135,7 @@ func newInitCmd(dir *string) *cobra.Command {
 func newClientCmd(dir *string) *cobra.Command {
 	cmd := &cobra.Command{Use: "client", Short: "Manage clients"}
 
+	var addFP string
 	add := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Add a client and print its sing-box config",
@@ -148,7 +149,7 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			c, err := s.AddClient(args[0])
+			c, err := s.AddClientWithFingerprint(args[0], addFP)
 			if err != nil {
 				return err
 			}
@@ -156,10 +157,12 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "client %q added (fingerprint: %s)\n", c.Name, c.Fingerprint)
 			fmt.Fprintln(cmd.OutOrStdout(), body)
 			return nil
 		},
 	}
+	add.Flags().StringVar(&addFP, "fingerprint", "", "uTLS fingerprint to pin ("+state.FingerprintList()+"); default: random per client")
 
 	rm := &cobra.Command{
 		Use:   "rm <name>",
@@ -187,7 +190,7 @@ func newClientCmd(dir *string) *cobra.Command {
 				return err
 			}
 			for _, c := range clients {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", c.Name, c.Created.Format("2006-01-02"))
+				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", c.Name, c.FingerprintOr("firefox"), c.Created.Format("2006-01-02"))
 			}
 			return nil
 		},

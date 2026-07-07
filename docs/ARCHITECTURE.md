@@ -179,7 +179,10 @@ design got wrong.
   **fingerprint** by the non-Chrome uTLS preset + REALITY, **frequency** by multiplex (now
   functional, since both ends are sing-box). Breaking any one signal suffices; REALITY breaks two.
   Pick a **non-Chrome** uTLS fingerprint (Firefox default / Safari / Edge / iOS) — mimicking
-  Chrome is now itself a flag.
+  Chrome is now itself a flag. Each **client** is assigned a random fingerprint from a
+  non-Chrome pool (`firefox`, `edge`, `safari`, `android`) at `rdda client add` time
+  (persisted per client; pin one with `--fingerprint`), so the fleet isn't fingerprint-uniform
+  — a shared fingerprint across many users is itself a correlation signal.
 - **uTLS caveat:** sing-box's maintainers document uTLS as imperfect for fingerprint resistance.
   Accepted residual risk here (clean subnet + REALITY already break the chain). **AnyTLS**
   (sing-box's native anti-detection protocol with its own multiplex) is the planned drop-in

@@ -23,7 +23,7 @@ func ClientOutbound(cfg state.Config, c state.Client) ([]byte, error) {
 		"tls": obj{
 			"enabled":     true,
 			"server_name": cfg.ClientReality.ServerName,
-			"utls":        obj{"enabled": true, "fingerprint": cfg.FP()},
+			"utls":        obj{"enabled": true, "fingerprint": c.FingerprintOr(cfg.FP())},
 			"reality":     obj{"enabled": true, "public_key": cfg.ClientReality.PublicKey, "short_id": sid},
 		},
 		"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},

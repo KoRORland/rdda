@@ -14,22 +14,48 @@ import (
 
 // Client is one VPN user.
 type Client struct {
-	Name    string    `json:"name"`
-	UUID    string    `json:"uuid"`
-	ShortID string    `json:"short_id"`
-	Token   string    `json:"token"`
-	Created time.Time `json:"created"`
+	Name    string `json:"name"`
+	UUID    string `json:"uuid"`
+	ShortID string `json:"short_id"`
+	Token   string `json:"token"`
+	// Fingerprint is the uTLS fingerprint this client mimics on the client→RU
+	// hop, randomized per client at creation so the fleet isn't fingerprint-
+	// uniform. Empty on clients created before this field existed.
+	Fingerprint string    `json:"fingerprint,omitempty"`
+	Created     time.Time `json:"created"`
+}
+
+// FingerprintOr returns the client's own fingerprint, falling back to the given
+// node default for clients created before per-client fingerprints existed.
+func (c Client) FingerprintOr(fallback string) string {
+	if c.Fingerprint != "" {
+		return c.Fingerprint
+	}
+	return fallback
 }
 
 func (s *Store) clientsDir() string { return filepath.Join(s.dir, "clients") }
 
 func clientFileName(name string) string { return name + ".json" }
 
-// AddClient creates and persists a new client; errors on empty or duplicate name.
+// AddClient creates and persists a new client with a randomized client-hop
+// fingerprint; errors on empty or duplicate name.
 func (s *Store) AddClient(name string) (Client, error) {
+	return s.AddClientWithFingerprint(name, "")
+}
+
+// AddClientWithFingerprint is AddClient with an explicit uTLS fingerprint. An
+// empty fingerprint is randomized from ClientFingerprints; a non-empty one must
+// be a supported pool value.
+func (s *Store) AddClientWithFingerprint(name, fingerprint string) (Client, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Client{}, fmt.Errorf("client name must not be empty")
+	}
+	if fingerprint == "" {
+		fingerprint = RandomClientFingerprint()
+	} else if !IsClientFingerprint(fingerprint) {
+		return Client{}, fmt.Errorf("unsupported fingerprint %q (choose one of: %s)", fingerprint, FingerprintList())
 	}
 	path := filepath.Join(s.clientsDir(), clientFileName(name))
 	if _, err := os.Stat(path); err == nil {
@@ -43,7 +69,7 @@ func (s *Store) AddClient(name string) (Client, error) {
 	if err != nil {
 		return Client{}, err
 	}
-	c := Client{Name: name, UUID: keys.NewUUID(), ShortID: sid, Token: tok, Created: time.Now().UTC()}
+	c := Client{Name: name, UUID: keys.NewUUID(), ShortID: sid, Token: tok, Fingerprint: fingerprint, Created: time.Now().UTC()}
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return Client{}, err
