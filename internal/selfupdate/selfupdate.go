@@ -33,6 +33,7 @@ type Updater struct {
 	fetch      func(tag, arch string) (bin []byte, sum string, err error)
 	restart    func(unit string) error
 	isActive   func(unit string) bool
+	unitExists func(unit string) bool
 	runVersion func(path string) (string, error)
 	sleep      func(time.Duration)
 }
@@ -46,6 +47,13 @@ func New(current string) *Updater {
 	u.isActive = func(unit string) bool {
 		out, _ := exec.Command("systemctl", "is-active", unit).CombinedOutput()
 		return strings.TrimSpace(string(out)) == "active"
+	}
+	// unitExists reports whether systemd knows the unit at all. `restartUnit`
+	// (rdda-sub) is EU-only; on an RU node it does not exist, so the post-swap
+	// restart must be skipped rather than treated as a failure that rolls back a
+	// perfectly good binary. `systemctl cat` exits non-zero for an unknown unit.
+	u.unitExists = func(unit string) bool {
+		return exec.Command("systemctl", "cat", unit).Run() == nil
 	}
 	// The post-swap self-check compares this output against the target release
 	// tag (v == to). That contract holds because `rdda version` prints exactly
@@ -101,11 +109,18 @@ func (u *Updater) Update() (from, to string, err error) {
 	if v, verr := u.runVersion(u.binPath); verr != nil || v != to {
 		return u.current, to, u.revert(fmt.Sprintf("new binary self-check failed (got %q want %q)", v, to))
 	}
-	if rerr := u.restart(restartUnit); rerr != nil {
-		return u.current, to, u.revert(fmt.Sprintf("restart %s failed: %v", restartUnit, rerr))
-	}
-	if !u.waitActive(restartUnit) {
-		return u.current, to, u.revert(fmt.Sprintf("%s not active after update", restartUnit))
+	// The `rdda version` self-check above is the role-independent proof the new
+	// binary works. Only restart the long-running service that execs rdda when it
+	// actually exists on this node — on an RU node there is none (rdda-sub is
+	// EU-only; pull/health/geoip are oneshot timers that pick up the new binary
+	// on their next fire), so skip the restart instead of failing the update.
+	if u.unitExists(restartUnit) {
+		if rerr := u.restart(restartUnit); rerr != nil {
+			return u.current, to, u.revert(fmt.Sprintf("restart %s failed: %v", restartUnit, rerr))
+		}
+		if !u.waitActive(restartUnit) {
+			return u.current, to, u.revert(fmt.Sprintf("%s not active after update", restartUnit))
+		}
 	}
 	return u.current, to, nil
 }
@@ -136,7 +151,10 @@ func (u *Updater) rollback() error {
 	if err := u.restoreBin(); err != nil {
 		return err
 	}
-	return u.restart(restartUnit)
+	if u.unitExists(restartUnit) {
+		return u.restart(restartUnit)
+	}
+	return nil
 }
 
 func (u *Updater) writeBin(b []byte) error {
@@ -188,18 +206,14 @@ func sha256hex(b []byte) string {
 }
 
 func resolveLatestTag() (string, error) {
-	resp, err := http.Get("https://api.github.com/repos/" + repo + "/releases/latest")
+	body, err := httpGetBytes("https://api.github.com/repos/" + repo + "/releases/latest")
 	if err != nil {
 		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("github release lookup: HTTP %d", resp.StatusCode)
 	}
 	var doc struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	if err := json.Unmarshal(body, &doc); err != nil {
 		return "", err
 	}
 	if doc.TagName == "" {
@@ -225,16 +239,33 @@ func fetchRelease(tag, arch string) ([]byte, string, error) {
 	return bin, sum, nil
 }
 
+// httpGetBytes fetches a URL with a per-attempt timeout and a few retries, so a
+// single flaky TLS handshake to the GitHub release CDN (routine from inside
+// Russia — the whole reason this project exists) doesn't abort a self-update.
 func httpGetBytes(url string) ([]byte, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
+	client := &http.Client{Timeout: 5 * time.Minute}
+	var lastErr error
+	for attempt := 1; attempt <= 4; attempt++ {
+		resp, err := client.Get(url)
+		if err != nil {
+			lastErr = err
+		} else {
+			body, rerr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			switch {
+			case rerr != nil:
+				lastErr = rerr
+			case resp.StatusCode != http.StatusOK:
+				lastErr = fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
+			default:
+				return body, nil
+			}
+		}
+		if attempt < 4 {
+			time.Sleep(time.Duration(attempt) * 3 * time.Second)
+		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
-	}
-	return io.ReadAll(resp.Body)
+	return nil, fmt.Errorf("GET %s failed after retries: %w", url, lastErr)
 }
 
 // sumFor returns the hex checksum whose line ends with the given filename.

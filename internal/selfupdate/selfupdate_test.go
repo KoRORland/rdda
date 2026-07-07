@@ -27,6 +27,7 @@ func newTestUpdater(t *testing.T, current, latest string) (*Updater, string) {
 		fetch:      func(tag, arch string) ([]byte, string, error) { return []byte(tag), sha256hex([]byte(tag)), nil },
 		restart:    func(string) error { return nil },
 		isActive:   func(string) bool { return true },
+		unitExists: func(string) bool { return true }, // EU-like: rdda-sub present
 		runVersion: func(string) (string, error) { return latest, nil },
 		sleep:      func(time.Duration) {},
 	}
@@ -73,6 +74,30 @@ func TestUpdateHappyPath(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(bin + ".prev"); string(b) != "v0.2.0" {
 		t.Fatalf("backup not kept, got %q", b)
+	}
+}
+
+// Regression: on an RU node rdda-sub does not exist. The update must succeed on
+// the strength of the binary self-check alone — never restart (and fail on) a
+// nonexistent unit, which previously rolled back a perfectly good update and
+// printed a bogus "ROLLBACK FAILED".
+func TestUpdateSkipsRestartWhenUnitAbsent(t *testing.T) {
+	u, bin := newTestUpdater(t, "v0.4.0", "v0.4.1")
+	u.unitExists = func(string) bool { return false } // RU: no rdda-sub
+	restartCalled := false
+	u.restart = func(string) error { restartCalled = true; return errors.New("Unit rdda-sub.service not loaded") }
+	from, to, err := u.Update()
+	if err != nil {
+		t.Fatalf("RU update must succeed without rdda-sub, got %v", err)
+	}
+	if from != "v0.4.0" || to != "v0.4.1" {
+		t.Fatalf("got %s -> %s", from, to)
+	}
+	if restartCalled {
+		t.Fatal("must not restart a unit that does not exist on this node")
+	}
+	if b, _ := os.ReadFile(bin); string(b) != "v0.4.1" {
+		t.Fatalf("new binary not in place: %q", b)
 	}
 }
 
