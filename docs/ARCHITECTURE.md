@@ -8,14 +8,18 @@ This is the high-level design. It deliberately favors **fewer moving parts, well
 maintained components, and observability** over cleverness. See `basic design layout.txt`
 for the original requirements seed.
 
-> **Implementation status — [`v0.3.0`](https://github.com/KoRORland/rdda/releases/tag/v0.3.0)
-> (Lane B + operator QoL).** The DPI-facing core is shipped and integration-gated: 2-hop
+> **Implementation status — [`v0.4.0`](https://github.com/KoRORland/rdda/releases/tag/v0.4.0)
+> (deployment hardening).** The DPI-facing core is shipped and integration-gated: 2-hop
 > sing-box data plane, client onboarding, sub server, Cloudflare ingress, nfqws2 egress desync,
-> and config pull-sync. v0.3 adds the operator tooling: the RU→EU health beat + `rdda status`,
-> `rdda doctor`, encrypted `rdda backup`/`restore`, email `rdda alert` (msmtp), and
-> `rdda update` (self-update + rollback) + `rdda heal` (auto-restart of failed units).
-> Not yet built (designed below, on the roadmap): RU failover and key rotation.
-> Sections marked *(planned)* call out the gaps inline.
+> and config pull-sync. v0.3 added the operator tooling (`status`, `doctor`, encrypted
+> `backup`/`restore`, email `alert`, self-`update` + `heal`). **v0.4** — forged by the first
+> real RU+EU+Cloudflare production bring-up — makes provisioning reliable and self-checking:
+> idempotent GitHub-from-RU-proof installs; one-command Cloudflare bring-up (`rdda cf setup`)
+> with DNS-route verification; one-command RU control channel (`rdda control-channel`); a
+> `doctor` that validates response **body + routing + service-user permissions** (not a lying
+> `200`/`active`); nfqws2 made safe-by-default (fooling method + scoped rule + opt-in); and
+> per-client uTLS fingerprint randomization. Not yet built (designed below, on the roadmap):
+> RU failover and key rotation. Sections marked *(planned)* call out the gaps inline.
 
 ---
 

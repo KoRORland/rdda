@@ -39,14 +39,18 @@ safety. Hence the name.
 - **Doesn't snitch on itself.** The in-Russia node exposes no management surface and looks
   like a normal web server to anyone poking at it.
 
-> 🟢 **Status: `v0.3.0` released** — the Lane B **single sing-box** data plane
+> 🟢 **Status: `v0.4.0` released** — a **deployment-hardening** release forged by
+> the first real two-node production bring-up (RU Moscow + EU AWS + Cloudflare).
+> It makes provisioning reliable, hands-off, and self-checking: idempotent
+> installs that survive flaky GitHub-from-RU, one-command Cloudflare bring-up
+> (`rdda cf setup`, with DNS-routing verification so a silent no-op can't ship a
+> dead endpoint), one-command RU control channel (`rdda control-channel`), a
+> `doctor` that validates **content + routing + permissions** (not just a lying
+> `200`/`active`), a safe-by-default obfuscation layer, and per-client uTLS
+> fingerprint randomization. Built on the v0.3 **single sing-box** data plane
 > (VLESS + REALITY + multiplex on the inspected hop, VLESS + WebSocket over
-> Cloudflare), verified end-to-end by the multi-host integration harness.
-> v0.3 makes the "self-healing, self-updating" promise real, adding the operator
-> quality-of-life tooling: `status`, `doctor`, encrypted `backup`/`restore`,
-> email `alert`s, and self-`update` + auto-`heal`. Still young — expect rough
-> edges. Latest build:
-> [**releases/v0.3.0**](https://github.com/KoRORland/rdda/releases/tag/v0.3.0).
+> Cloudflare). Latest build:
+> [**releases/v0.4.0**](https://github.com/KoRORland/rdda/releases/tag/v0.4.0).
 > See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
 ## How it works (the 30-second version)
@@ -68,9 +72,9 @@ Full design and rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 You need **two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
 
-The installer pulls the latest published release (currently **v0.3.0**, checksum-verified
+The installer pulls the latest published release (currently **v0.4.0**, checksum-verified
 amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
-`--version v0.3.0` to either `bash -s --` line below.
+`--version v0.4.0` to either `bash -s --` line below.
 
 1. **EU node** (SSH is fine here):
    ```bash
