@@ -1,0 +1,15 @@
+[Unit]
+Description=RDDA geoip-ru rule-set refresh (RU node, fail-safe)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Fail-safe by design: a failed fetch/validate keeps the current .srs and exits 0,
+# so the timer never enters a failed state and the node is never left without
+# geoip data. Reloads sing-box only when the data actually changed.
+ExecStart=/usr/local/bin/rdda route update-geoip
+User=rdda
+Group=rdda
+# Post-update reload uses the same one-command sudo grant as rdda-pull
+# (/etc/sudoers.d/rdda-reload); no NoNewPrivileges so that sudo can escalate.

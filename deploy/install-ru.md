@@ -152,14 +152,19 @@ If a release runs but misbehaves, revert manually:
 
     sudo rdda update --rollback
 
-**Opt-in auto-update.** A disabled-by-default timer can run `rdda update` for you:
+**Auto-update (enabled by the installer).** `rdda-update.timer` runs `rdda update`
+on a staggered (randomized) schedule so both nodes track new releases hands-off:
 
-    sudo systemctl enable --now rdda-update.timer
+    systemctl status rdda-update.timer     # confirm it's active
 
-It is staggered (randomized delay) so a bad release does not hit every node at once.
+It is staggered so a bad release does not hit every node at once.
 **Risk:** auto-rollback only catches a *broken* binary — a release that runs but is
-subtly wrong will deploy to every opted-in node. Leave the timer off if you prefer
-to update by hand, and recover with `--rollback` or a pinned re-install.
+subtly wrong will deploy to every node. To opt out and update by hand:
+`sudo systemctl disable --now rdda-update.timer` (then use `rdda update` / `--rollback`).
+
+> **Note:** `rdda update` swaps only the **binary**. Changes shipped in systemd
+> units or the installer (e.g. new timers, the nfqws fooling flag) require a
+> re-run of `install.sh --version <tag>` to pick up.
 
 ## 6. Health & diagnostics
 
@@ -201,8 +206,14 @@ downloads a *remote* rule-set (blocking) at startup and fails to start if it
 cannot reach it, a poor dependency for a censored entry node. A local file means
 the data plane always starts offline.
 
-- **Update it:** re-run the installer, or refresh the file:
-  `curl -fsSL https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs -o /etc/rdda/geoip-ru.srs && systemctl reload-or-restart rdda-singbox`.
+- **Auto-refresh (default):** the installer enables **`rdda-geoip.timer`**, which
+  runs `rdda route update-geoip` **weekly** (randomized). It fetches the latest
+  rule-set, validates it, and swaps + reloads sing-box **only if the data changed**.
+  Fail-safe: any fetch/validation failure keeps the current file and exits cleanly,
+  so the node is never left without geoip data and the timer never wedges.
+- **Update now (manual):** `sudo rdda route update-geoip` (or re-run the installer).
+- **Inspect routing:** `rdda route test <ip|domain> [--trace]` shows whether a
+  destination goes **direct** or through the **EU tunnel**, and which rule decided.
 - **Disable split-routing** (tunnel everything — safe, less efficient): on the EU
   node, `rdda init … --geoip-path ""` and re-render; the RU config then carries no
   rule-set and needs no `.srs` file.

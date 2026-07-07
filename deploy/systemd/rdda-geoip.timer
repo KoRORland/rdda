@@ -1,0 +1,13 @@
+[Unit]
+Description=RDDA weekly geoip-ru rule-set refresh timer
+
+[Timer]
+# Weekly, with a large randomized delay: geoip allocations drift slowly, and the
+# jitter avoids a synchronized fleet-wide fetch. Persistent catches up a refresh
+# missed while the node was down.
+OnCalendar=weekly
+RandomizedDelaySec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

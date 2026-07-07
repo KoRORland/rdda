@@ -177,9 +177,13 @@ if [ "$ROLE" = "ru" ]; then
   fetch "${RAW}/rdda-health.timer"   -o "${UNIT_DIR}/rdda-health.timer"
   fetch "${RAW}/rdda-pull.service"   -o "${UNIT_DIR}/rdda-pull.service"
   fetch "${RAW}/rdda-pull.timer"     -o "${UNIT_DIR}/rdda-pull.timer"
+  fetch "${RAW}/rdda-geoip.service"  -o "${UNIT_DIR}/rdda-geoip.service"
+  fetch "${RAW}/rdda-geoip.timer"    -o "${UNIT_DIR}/rdda-geoip.timer"
 fi
 systemctl daemon-reload
 systemctl enable --now rdda-heal.timer
+# Binary self-update on a timer (both roles): track new releases automatically.
+systemctl enable --now rdda-update.timer
 log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
 if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
@@ -205,6 +209,10 @@ if [ "$ROLE" = "ru" ]; then
   # /etc/rdda/pull.env, which `rdda control-channel init` writes. Starting them
   # now would just fail on the missing EnvironmentFile (the G4 false-failure).
   log "control-channel timers staged; enable them after 'rdda control-channel init' (see next steps)"
+  # Weekly geoip-ru data refresh (fail-safe: keeps current data on any failure).
+  # geoip-ru.srs was fetched above, so the first run is a no-op no-change.
+  systemctl enable --now rdda-geoip.timer
+  log "rdda-geoip.timer enabled (weekly domestic-IP refresh)"
 fi
 if [ "$ROLE" = "eu" ]; then
   systemctl enable --now rdda-alert.timer
