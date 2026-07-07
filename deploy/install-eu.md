@@ -121,12 +121,29 @@ Run `rdda doctor` any time to actively check this node: services, the REALITY
 dest, the Cloudflare control channel, and (on RU) a real fetch through the
 RU→EU tunnel. It exits non-zero if a check fails, so it works in monitoring/cron.
 
-## 6. Cloudflare Tunnel (v0.2)
+## 6. Cloudflare Tunnel
 
 This section brings up the Cloudflare tunnel so the subscription endpoint and
 the sing-box ingress are reachable without exposing any inbound port to the internet.
 After this, **close all inbound firewall ports except 22** — sing-box and the sub
 server now listen on loopback only and are reached exclusively via cloudflared.
+
+### 6.0 One command (recommended): `rdda cf setup`
+
+After `rdda init` (with `--cf-tunnel-host` / `--cf-sub-host` set, step 2), the
+whole bring-up below is a single idempotent command:
+
+    rdda cf setup            # login → create → config → route DNS (verified) → service
+    rdda cf setup --dry-run  # preview every step without changing anything
+
+`cf setup` creates or reuses the tunnel, captures the ID + credentials
+automatically (no copy/paste), writes the `cloudflare:` block into `config.yaml`,
+renders `/etc/cloudflared/config.yml`, and **verifies each `route dns` actually
+reaches this tunnel** — refusing to enable the service if a stale DNS record
+would leave a hostname serving the wrong origin. Only install cloudflared first
+(§6.1); then skip to §6.7 to lock the firewall.
+
+The manual steps §6.1–§6.6 below remain as a reference / fallback.
 
 ### 6.1 Install cloudflared
 

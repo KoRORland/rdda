@@ -42,6 +42,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newServeCmd(&dir))
 	root.AddCommand(newPullCmd())
 	root.AddCommand(newControlChannelCmd(&dir))
+	root.AddCommand(newCFCmd(&dir))
 	root.AddCommand(newCheckDestCmd())
 	root.AddCommand(newHealthCmd())
 	root.AddCommand(newStatusCmd(&dir))
