@@ -187,16 +187,42 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			clients, err := s.ListClients()
+			c, err := findClientByName(s, args[0])
 			if err != nil {
 				return err
 			}
-			for _, c := range clients {
-				if c.Name == args[0] {
-					return emitClientImport(cmd, s, cfg, c)
-				}
+			return emitClientImport(cmd, s, cfg, c)
+		},
+	}
+
+	show := &cobra.Command{
+		Use:   "show <name>",
+		Short: "Show an existing client: details + Hiddify import QR/link + config",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
 			}
-			return fmt.Errorf("client %q not found", args[0])
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			c, err := findClientByName(s, args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "client %q (fingerprint: %s, created: %s)\n",
+				c.Name, c.FingerprintOr(cfg.FP()), c.Created.Format("2006-01-02"))
+			if err := emitClientImport(cmd, s, cfg, c); err != nil {
+				return err
+			}
+			body, err := subscription.Build(cfg, c)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), body)
+			return nil
 		},
 	}
 
@@ -232,8 +258,23 @@ func newClientCmd(dir *string) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(add, qrCmd, rm, list)
+	cmd.AddCommand(add, qrCmd, show, rm, list)
 	return cmd
+}
+
+// findClientByName looks up a client by its exact name, returning a friendly
+// "not found" error the CLI surfaces directly.
+func findClientByName(s *state.Store, name string) (state.Client, error) {
+	clients, err := s.ListClients()
+	if err != nil {
+		return state.Client{}, err
+	}
+	for _, c := range clients {
+		if c.Name == name {
+			return c, nil
+		}
+	}
+	return state.Client{}, fmt.Errorf("client %q not found", name)
 }
 
 // emitClientImport prints a client's scannable Hiddify deep-link QR plus the

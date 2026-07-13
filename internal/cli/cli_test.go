@@ -80,6 +80,23 @@ func TestClientAddConfigFlagPrintsJSON(t *testing.T) {
 	}
 }
 
+func TestClientShow(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
+	run(t, "--dir", dir, "client", "add", "granny")
+	out := run(t, "--dir", dir, "client", "show", "granny")
+	// show is the comprehensive view: import link AND the raw config.
+	if !strings.Contains(out, "hiddify://import/") {
+		t.Errorf("client show should print the import link, got: %s", out)
+	}
+	if !strings.Contains(out, "\"outbounds\"") || !strings.Contains(out, "reality") {
+		t.Errorf("client show should print the sing-box config, got: %s", out)
+	}
+	if err := runErr(t, "--dir", dir, "client", "show", "nobody"); err == nil {
+		t.Fatal("client show for a missing client should error")
+	}
+}
+
 func TestClientQRReprints(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")

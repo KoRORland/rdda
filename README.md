@@ -95,9 +95,10 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
    ```bash
    rdda client add aunt-olga
    # → prints a terminal QR + hiddify://import/… link, saves clients/aunt-olga.png
-   rdda client qr aunt-olga   # reprint the QR/link later (alias: link)
+   rdda client qr aunt-olga     # reprint the QR/link later (alias: link)
+   rdda client show aunt-olga   # full view: details + QR/link + sing-box config
    ```
-   Add `--config` if you need the raw sing-box JSON instead.
+   Add `--config` to `client add` if you need the raw sing-box JSON as well.
 
 See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](deploy/install-ru.md) for the detailed walkthrough.
 
