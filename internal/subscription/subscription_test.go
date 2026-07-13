@@ -106,15 +106,41 @@ func TestBuildIsHardened(t *testing.T) {
 	}
 }
 
-func TestSubURLAndDeepLink(t *testing.T) {
+func TestQRPayload(t *testing.T) {
 	c := cfg()
-	c.SubBaseURL = "https://eu.example.net/"
-	cl := state.Client{UUID: "u", Name: "granny", Token: "AbC123"}
-	if got, want := SubURL(c, cl), "https://eu.example.net/sub/AbC123"; got != want {
-		t.Errorf("SubURL = %q, want %q (trailing slash must be trimmed)", got, want)
+	c.EUHost = "eu-exit.secret.example" // must never appear in a client-facing QR
+	c.SubBaseURL = "https://eu-exit.secret.example"
+	payload, err := QRPayload(c, state.Client{UUID: "uuid-9", Name: "granny"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got, want := DeepLink(c, cl), "hiddify://import/https://eu.example.net/sub/AbC123#RDDA"; got != want {
-		t.Errorf("DeepLink = %q, want %q", got, want)
+	// Names the profile (so it's not UNKNOWN) and carries the full config.
+	if !strings.HasPrefix(payload, "// profile-title: RDDA") {
+		t.Errorf("payload must start with the naming header, got: %.40q", payload)
+	}
+	// OPSEC: the payload references only the RU entry node, never the EU exit.
+	if strings.Contains(payload, "eu-exit.secret.example") {
+		t.Fatalf("QR payload leaks the EU exit host:\n%s", payload)
+	}
+	if !strings.Contains(payload, "ru.example.net") {
+		t.Errorf("QR payload should reference the RU entry host")
+	}
+	// The JSON body (after the // header lines) must be compact and valid, and
+	// still the hardened config.
+	body := payload[strings.Index(payload, "{"):]
+	if strings.Contains(body, "\n") {
+		t.Error("QR payload JSON must be compact (no newlines) to keep the QR small")
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatalf("QR payload JSON invalid: %v", err)
+	}
+	if _, ok := doc["route"]; !ok {
+		t.Error("QR payload must keep the hardened route block")
+	}
+	// Must fit a Medium-ECC QR (v40 M ~= 2331 bytes) with margin.
+	if len(payload) > 1800 {
+		t.Errorf("QR payload is %d bytes — too large for a reliably scannable QR", len(payload))
 	}
 }
 

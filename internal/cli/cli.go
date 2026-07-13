@@ -277,28 +277,37 @@ func findClientByName(s *state.Store, name string) (state.Client, error) {
 	return state.Client{}, fmt.Errorf("client %q not found", name)
 }
 
-// emitClientImport prints a client's scannable Hiddify deep-link QR plus the
-// deep-link and raw subscription URL, and saves a PNG (chowned to the service
-// user) the operator can hand to the user. Shared by `client add` and `client qr`.
+// emitClientImport saves (and, when small enough to stay scannable, prints) a QR
+// that embeds the client's full sing-box config as data — not a link. The payload
+// references only the RU entry node, so it exposes nothing about the EU exit and
+// the user imports it offline (no server fetch, nothing to time out or reveal).
+// The PNG (chowned to the service user) is the artifact the operator hands over.
+// Shared by `client add`, `client qr`, and `client show`.
 func emitClientImport(cmd *cobra.Command, s *state.Store, cfg state.Config, c state.Client) error {
-	if cfg.SubBaseURL == "" {
-		fmt.Fprintln(cmd.ErrOrStderr(), "warning: sub_base_url is empty in config.yaml; the links below are incomplete")
+	payload, err := subscription.QRPayload(cfg, c)
+	if err != nil {
+		return err
 	}
-	link := subscription.DeepLink(cfg, c)
 	out := cmd.OutOrStdout()
-	if art, err := qr.Terminal(link); err == nil {
-		fmt.Fprintln(out, art)
-	}
-	fmt.Fprintf(out, "Import into Hiddify: %s\n", link)
-	fmt.Fprintf(out, "Subscription URL:    %s\n", subscription.SubURL(cfg, c))
 	pngPath := s.ClientQRPath(c.Name)
-	if err := qr.PNG(link, pngPath); err != nil {
+	if err := qr.PNG(payload, pngPath); err != nil {
 		return fmt.Errorf("write QR PNG: %w", err)
 	}
 	s.ChownServiceFile(pngPath)
-	fmt.Fprintf(out, "QR image saved:      %s\n", pngPath)
+	fmt.Fprintf(out, "Hiddify QR (offline — holds the config, no server needed): %s\n", pngPath)
+	// A full-config payload makes a high-version QR that a terminal can't render
+	// legibly; only draw it inline when it's small enough to actually scan.
+	if len(payload) <= terminalQRMax {
+		if art, err := qr.Terminal(payload); err == nil {
+			fmt.Fprintln(out, art)
+		}
+	}
 	return nil
 }
+
+// terminalQRMax is the payload size above which an inline (terminal) QR becomes
+// too dense to scan off a screen, so we emit only the PNG.
+const terminalQRMax = 300
 
 func newRenderCmd(dir *string) *cobra.Command {
 	var clientUUID string

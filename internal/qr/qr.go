@@ -17,8 +17,10 @@ func Terminal(s string) (string, error) {
 	return q.ToSmallString(false), nil
 }
 
-// PNG writes a QR of s to path (256px, medium error correction). The operator
-// sends this image to the user, who scans it with Hiddify.
+// PNG writes a QR of s to path (512px, medium error correction). The operator
+// sends this image to the user, who scans it with Hiddify. 512px keeps the code
+// scannable even for a dense payload (an embedded full config is ~1KB → a
+// high-version QR), where 256px would pack the modules too tightly.
 func PNG(s, path string) error {
-	return qrcode.WriteFile(s, qrcode.Medium, 256, path)
+	return qrcode.WriteFile(s, qrcode.Medium, 512, path)
 }

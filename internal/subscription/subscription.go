@@ -4,7 +4,6 @@ package subscription
 import (
 	"encoding/base64"
 	"encoding/json"
-	"strings"
 
 	"github.com/KoRORland/rdda/internal/state"
 )
@@ -13,8 +12,8 @@ type obj = map[string]any
 
 // ProfileTitle is the name Hiddify shows for an RDDA profile. It replaces the
 // "UNKNOWN" that Hiddify falls back to when a subscription carries no name: it is
-// surfaced three ways — the Profile-Title HTTP header, the in-file ImportHeader
-// comment, and the DeepLink fragment.
+// surfaced via the Profile-Title HTTP header (URL path) and the in-file
+// ImportHeader comment (QR/file path).
 const ProfileTitle = "RDDA"
 
 // ClientOutbound returns one sing-box VLESS/REALITY/multiplex outbound object
@@ -52,13 +51,42 @@ func ClientOutbound(cfg state.Config, c state.Client) ([]byte, error) {
 // ip_is_private, block outbound) as internal/singboxconf so both sides stay on
 // one sing-box version.
 func Build(cfg state.Config, c state.Client) (string, error) {
-	ob, err := ClientOutbound(cfg, c)
+	doc, err := buildDoc(cfg, c)
 	if err != nil {
 		return "", err
 	}
+	b, err := json.MarshalIndent(doc, "", "  ")
+	return string(b), err
+}
+
+// QRPayload returns the self-contained config to embed in a client's QR: the
+// ImportHeader (which names the profile) followed by the *compact* hardened
+// sing-box config. Unlike a subscription URL, this references only the RU entry
+// node — never the EU exit — so scanning it exposes nothing about the exit and
+// needs no network fetch; the client imports it offline. Compact (unindented)
+// JSON keeps the QR as small/scannable as the ~1KB config allows.
+func QRPayload(cfg state.Config, c state.Client) (string, error) {
+	doc, err := buildDoc(cfg, c)
+	if err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	return ImportHeader() + string(b), nil
+}
+
+// buildDoc assembles the hardened sing-box config document shared by Build (human-
+// readable, indented) and QRPayload (compact, QR-embedded).
+func buildDoc(cfg state.Config, c state.Client) (obj, error) {
+	ob, err := ClientOutbound(cfg, c)
+	if err != nil {
+		return nil, err
+	}
 	var out obj
 	if err := json.Unmarshal(ob, &out); err != nil {
-		return "", err
+		return nil, err
 	}
 	doc := obj{
 		"log": obj{"level": "warn"},
@@ -89,23 +117,7 @@ func Build(cfg state.Config, c state.Client) (string, error) {
 			"cache_file": obj{"enabled": true},
 		},
 	}
-	b, err := json.MarshalIndent(doc, "", "  ")
-	return string(b), err
-}
-
-// SubURL returns the public https subscription URL for a client, e.g.
-// https://eu.example.net/sub/<token>. It reads cfg.SubBaseURL (set at init to the
-// EU/CF-fronted host); an empty base yields "/sub/<token>", which callers should
-// treat as a misconfiguration.
-func SubURL(cfg state.Config, c state.Client) string {
-	return strings.TrimRight(cfg.SubBaseURL, "/") + "/sub/" + c.Token
-}
-
-// DeepLink returns a hiddify://import/ deep link for a client. Scanning its QR (or
-// opening the link) imports the subscription into Hiddify in one tap and names the
-// profile via the URL fragment.
-func DeepLink(cfg state.Config, c state.Client) string {
-	return "hiddify://import/" + SubURL(cfg, c) + "#" + ProfileTitle
+	return doc, nil
 }
 
 // ImportHeader returns the //-prefixed comment header Hiddify reads from the first

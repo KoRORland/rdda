@@ -6,7 +6,7 @@
 
 **A 2-hop VPN that looks Russian on the outside and free on the inside.**
 
-*Set it up once. Hand granny a link. Let the DPI keep guessing.*
+*Set it up once. Hand granny a QR. Let the DPI keep guessing.*
 
 </div>
 
@@ -28,7 +28,7 @@ safety. Hence the name.
 
 ## Why it's not *yet another* VPN script
 
-- **Granny-grade client.** Install [Hiddify](https://hiddify.com), paste one link, hit
+- **Granny-grade client.** Install [Hiddify](https://hiddify.com), scan one QR, hit
   Connect. That's the entire user manual.
 - **Operator-grade laziness.** Highly automated, self-healing, self-updating. Humans only
   show up to add a friend or put out a fire.
@@ -89,14 +89,14 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
    ```
    Then, on EU, `rdda render ru` and copy the output to the RU node's
    `/etc/rdda/singbox.json`; on RU `systemctl enable --now rdda-singbox`.
-3. **Add a friend** (on EU). `client add` prints a scannable QR and a one-tap
-   Hiddify import link, and saves a QR image (`clients/<name>.png`) you can send
-   privately:
+3. **Add a friend** (on EU). `client add` saves a QR image (`clients/<name>.png`)
+   that **holds the whole config as data** — offline, no server to reach, and it
+   references only the RU entry node, never the EU exit. Send it privately:
    ```bash
    rdda client add aunt-olga
-   # → prints a terminal QR + hiddify://import/… link, saves clients/aunt-olga.png
-   rdda client qr aunt-olga     # reprint the QR/link later (alias: link)
-   rdda client show aunt-olga   # full view: details + QR/link + sing-box config
+   # → saves clients/aunt-olga.png (a self-contained, offline Hiddify config QR)
+   rdda client qr aunt-olga     # re-save the QR later (alias: link)
+   rdda client show aunt-olga   # full view: details + QR + sing-box config
    ```
    Add `--config` to `client add` if you need the raw sing-box JSON as well.
 
@@ -122,12 +122,13 @@ Details and setup (msmtp, the opt-in auto-update timer, etc.) are in
 ## 📱 Quickstart — Clients (your friends & family)
 
 1. Install **Hiddify** ([hiddify.com](https://hiddify.com)) — Android, Windows, or Linux.
-2. **Scan the QR** the operator sent you (or tap the `hiddify://import/…` link) — Hiddify
-   imports it as a profile named **RDDA**, already tuned for you. No settings to touch.
+2. **Scan the QR** the operator sent you — it holds the whole config, so it imports as a
+   profile named **RDDA**, already tuned for you, with nothing to fetch and no settings
+   to touch.
 3. Hit **Connect**. That's it.
 
-> On a device without a camera, open the link the operator sent, or paste the plain
-> `https://…/sub/…` subscription URL into Hiddify as a **new profile from URL**.
+> On a device without a camera, save the QR image and use Hiddify's **Add from clipboard /
+> import image** — the config is inside the QR itself, so no link or internet is needed.
 
 ---
 

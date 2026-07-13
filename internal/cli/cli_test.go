@@ -53,19 +53,21 @@ func TestInitWritesConfig(t *testing.T) {
 	}
 }
 
-func TestClientAddPrintsQRAndLink(t *testing.T) {
+func TestClientAddWritesOfflineQR(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
 	out := run(t, "--dir", dir, "client", "add", "granny")
-	// Default output is the Hiddify import deep-link + subscription URL, not the
-	// raw JSON (which is now behind --config).
-	if !strings.Contains(out, "hiddify://import/") || !strings.Contains(out, "/sub/") {
-		t.Fatalf("expected a Hiddify import link, got: %s", out)
+	// The QR embeds the config as data and is saved as a PNG; the handoff must not
+	// print (or the QR encode) any subscription URL — that would leak the EU exit.
+	if !strings.Contains(out, "Hiddify QR") {
+		t.Fatalf("expected the offline-QR handoff line, got: %s", out)
+	}
+	if strings.Contains(out, "eu.example.net") || strings.Contains(out, "hiddify://import/") {
+		t.Fatalf("handoff output must not reference the EU host / a subscription URL: %s", out)
 	}
 	if strings.Contains(out, "\"outbounds\"") {
 		t.Fatalf("raw config should be gated behind --config, but was printed: %s", out)
 	}
-	// The QR PNG must be written next to the client's JSON.
 	if _, err := os.Stat(filepath.Join(dir, "clients", "granny.png")); err != nil {
 		t.Fatalf("client add should save a QR PNG: %v", err)
 	}
@@ -85,9 +87,9 @@ func TestClientShow(t *testing.T) {
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
 	run(t, "--dir", dir, "client", "add", "granny")
 	out := run(t, "--dir", dir, "client", "show", "granny")
-	// show is the comprehensive view: import link AND the raw config.
-	if !strings.Contains(out, "hiddify://import/") {
-		t.Errorf("client show should print the import link, got: %s", out)
+	// show is the comprehensive view: the offline QR PNG AND the raw config.
+	if !strings.Contains(out, "Hiddify QR") {
+		t.Errorf("client show should save/announce the offline QR, got: %s", out)
 	}
 	if !strings.Contains(out, "\"outbounds\"") || !strings.Contains(out, "reality") {
 		t.Errorf("client show should print the sing-box config, got: %s", out)
@@ -102,8 +104,8 @@ func TestClientQRReprints(t *testing.T) {
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
 	run(t, "--dir", dir, "client", "add", "granny")
 	out := run(t, "--dir", dir, "client", "qr", "granny")
-	if !strings.Contains(out, "hiddify://import/") {
-		t.Fatalf("client qr should reprint the import link, got: %s", out)
+	if !strings.Contains(out, "Hiddify QR") {
+		t.Fatalf("client qr should reprint/save the offline QR, got: %s", out)
 	}
 	if err := runErr(t, "--dir", dir, "client", "qr", "nobody"); err == nil {
 		t.Fatal("client qr for a missing client should error")
