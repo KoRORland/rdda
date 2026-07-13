@@ -62,6 +62,69 @@ func TestBuildIsFullConfig(t *testing.T) {
 	}
 }
 
+// Build must ship the hardened posture — DNS, QUIC/UDP-443 kill, and a route
+// final pointing back at the rdda outbound — so the user never opens settings.
+func TestBuildIsHardened(t *testing.T) {
+	s, err := Build(cfg(), state.Client{UUID: "u", Name: "granny"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(s), &doc); err != nil {
+		t.Fatalf("Build output is not valid JSON: %v", err)
+	}
+	if _, ok := doc["dns"]; !ok {
+		t.Error("hardened config must carry a dns block")
+	}
+	route, ok := doc["route"].(map[string]any)
+	if !ok {
+		t.Fatal("config missing route block")
+	}
+	if route["final"] != "rdda" {
+		t.Errorf("route.final = %v, want rdda (the outbound tag)", route["final"])
+	}
+	// A block outbound must exist for the QUIC/bittorrent drop rules to target.
+	obs, _ := doc["outbounds"].([]any)
+	var hasBlock, hasRdda bool
+	for _, o := range obs {
+		m, _ := o.(map[string]any)
+		if m["type"] == "block" {
+			hasBlock = true
+		}
+		if m["tag"] == "rdda" {
+			hasRdda = true
+		}
+	}
+	if !hasBlock {
+		t.Error("hardened config must include a block outbound")
+	}
+	if !hasRdda {
+		t.Error("outbound tag must stay \"rdda\" — route.final and the dns detour reference it")
+	}
+	if !strings.Contains(s, "quic") {
+		t.Error("hardened config must drop QUIC")
+	}
+}
+
+func TestSubURLAndDeepLink(t *testing.T) {
+	c := cfg()
+	c.SubBaseURL = "https://eu.example.net/"
+	cl := state.Client{UUID: "u", Name: "granny", Token: "AbC123"}
+	if got, want := SubURL(c, cl), "https://eu.example.net/sub/AbC123"; got != want {
+		t.Errorf("SubURL = %q, want %q (trailing slash must be trimmed)", got, want)
+	}
+	if got, want := DeepLink(c, cl), "hiddify://import/https://eu.example.net/sub/AbC123#RDDA"; got != want {
+		t.Errorf("DeepLink = %q, want %q", got, want)
+	}
+}
+
+func TestProfileTitleHeaderIsBase64(t *testing.T) {
+	// base64("RDDA") == "UkREQQ==" — the exact value a client will match on.
+	if got := ProfileTitleHeader(); got != "base64:UkREQQ==" {
+		t.Errorf("ProfileTitleHeader = %q, want base64:UkREQQ==", got)
+	}
+}
+
 // TestSubscriptionMatchesRUInbound is a cross-component regression test ensuring
 // that the subscription outbound parameters match what RenderRU puts in the RU inbound.
 // Specifically: the subscription's REALITY short_id must appear in RenderRU's inbound

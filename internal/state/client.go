@@ -38,6 +38,15 @@ func (s *Store) clientsDir() string { return filepath.Join(s.dir, "clients") }
 
 func clientFileName(name string) string { return name + ".json" }
 
+// ClientQRPath returns where a client's QR PNG lives (next to its JSON).
+func (s *Store) ClientQRPath(name string) string {
+	return filepath.Join(s.clientsDir(), name+".png")
+}
+
+// ChownServiceFile best-effort chowns a state-dir file to the rdda service user,
+// for root-run commands (e.g. `rdda client qr`) that write alongside client data.
+func (s *Store) ChownServiceFile(path string) { chownToService(path) }
+
 // AddClient creates and persists a new client with a randomized client-hop
 // fingerprint; errors on empty or duplicate name.
 func (s *Store) AddClient(name string) (Client, error) {

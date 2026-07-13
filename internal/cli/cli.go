@@ -9,6 +9,7 @@ import (
 	"github.com/KoRORland/rdda/internal/cfconfig"
 	"github.com/KoRORland/rdda/internal/keys"
 	"github.com/KoRORland/rdda/internal/pull"
+	"github.com/KoRORland/rdda/internal/qr"
 	"github.com/KoRORland/rdda/internal/singboxconf"
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subscription"
@@ -137,9 +138,10 @@ func newClientCmd(dir *string) *cobra.Command {
 	cmd := &cobra.Command{Use: "client", Short: "Manage clients"}
 
 	var addFP string
+	var addConfig bool
 	add := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Add a client and print its sing-box config",
+		Short: "Add a client and print its Hiddify import QR + link",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := state.Open(*dir)
@@ -154,16 +156,49 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body, err := subscription.Build(cfg, c)
-			if err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "client %q added (fingerprint: %s)\n", c.Name, c.Fingerprint)
+			if err := emitClientImport(cmd, s, cfg, c); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "client %q added (fingerprint: %s)\n", c.Name, c.Fingerprint)
-			fmt.Fprintln(cmd.OutOrStdout(), body)
+			if addConfig {
+				body, err := subscription.Build(cfg, c)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), body)
+			}
 			return nil
 		},
 	}
 	add.Flags().StringVar(&addFP, "fingerprint", "", "uTLS fingerprint to pin ("+state.FingerprintList()+"); default: random per client")
+	add.Flags().BoolVar(&addConfig, "config", false, "also print the raw sing-box config JSON")
+
+	qrCmd := &cobra.Command{
+		Use:     "qr <name>",
+		Aliases: []string{"link"},
+		Short:   "Reprint an existing client's Hiddify import QR + link",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			cfg, err := s.LoadConfig()
+			if err != nil {
+				return err
+			}
+			clients, err := s.ListClients()
+			if err != nil {
+				return err
+			}
+			for _, c := range clients {
+				if c.Name == args[0] {
+					return emitClientImport(cmd, s, cfg, c)
+				}
+			}
+			return fmt.Errorf("client %q not found", args[0])
+		},
+	}
 
 	rm := &cobra.Command{
 		Use:   "rm <name>",
@@ -197,8 +232,31 @@ func newClientCmd(dir *string) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(add, rm, list)
+	cmd.AddCommand(add, qrCmd, rm, list)
 	return cmd
+}
+
+// emitClientImport prints a client's scannable Hiddify deep-link QR plus the
+// deep-link and raw subscription URL, and saves a PNG (chowned to the service
+// user) the operator can hand to the user. Shared by `client add` and `client qr`.
+func emitClientImport(cmd *cobra.Command, s *state.Store, cfg state.Config, c state.Client) error {
+	if cfg.SubBaseURL == "" {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: sub_base_url is empty in config.yaml; the links below are incomplete")
+	}
+	link := subscription.DeepLink(cfg, c)
+	out := cmd.OutOrStdout()
+	if art, err := qr.Terminal(link); err == nil {
+		fmt.Fprintln(out, art)
+	}
+	fmt.Fprintf(out, "Import into Hiddify: %s\n", link)
+	fmt.Fprintf(out, "Subscription URL:    %s\n", subscription.SubURL(cfg, c))
+	pngPath := s.ClientQRPath(c.Name)
+	if err := qr.PNG(link, pngPath); err != nil {
+		return fmt.Errorf("write QR PNG: %w", err)
+	}
+	s.ChownServiceFile(pngPath)
+	fmt.Fprintf(out, "QR image saved:      %s\n", pngPath)
+	return nil
 }
 
 func newRenderCmd(dir *string) *cobra.Command {

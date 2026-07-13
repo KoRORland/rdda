@@ -89,10 +89,15 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
    ```
    Then, on EU, `rdda render ru` and copy the output to the RU node's
    `/etc/rdda/singbox.json`; on RU `systemctl enable --now rdda-singbox`.
-3. **Add a friend** (on EU) and send them the printed sing-box config privately:
+3. **Add a friend** (on EU). `client add` prints a scannable QR and a one-tap
+   Hiddify import link, and saves a QR image (`clients/<name>.png`) you can send
+   privately:
    ```bash
    rdda client add aunt-olga
+   # → prints a terminal QR + hiddify://import/… link, saves clients/aunt-olga.png
+   rdda client qr aunt-olga   # reprint the QR/link later (alias: link)
    ```
+   Add `--config` if you need the raw sing-box JSON instead.
 
 See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](deploy/install-ru.md) for the detailed walkthrough.
 
@@ -116,8 +121,12 @@ Details and setup (msmtp, the opt-in auto-update timer, etc.) are in
 ## 📱 Quickstart — Clients (your friends & family)
 
 1. Install **Hiddify** ([hiddify.com](https://hiddify.com)) — Android, Windows, or Linux.
-2. Paste the sing-box config the operator sent you into Hiddify as a **new profile/config**.
+2. **Scan the QR** the operator sent you (or tap the `hiddify://import/…` link) — Hiddify
+   imports it as a profile named **RDDA**, already tuned for you. No settings to touch.
 3. Hit **Connect**. That's it.
+
+> On a device without a camera, open the link the operator sent, or paste the plain
+> `https://…/sub/…` subscription URL into Hiddify as a **new profile from URL**.
 
 ---
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -52,12 +53,43 @@ func TestInitWritesConfig(t *testing.T) {
 	}
 }
 
-func TestClientAddPrintsSingboxConfig(t *testing.T) {
+func TestClientAddPrintsQRAndLink(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
 	out := run(t, "--dir", dir, "client", "add", "granny")
+	// Default output is the Hiddify import deep-link + subscription URL, not the
+	// raw JSON (which is now behind --config).
+	if !strings.Contains(out, "hiddify://import/") || !strings.Contains(out, "/sub/") {
+		t.Fatalf("expected a Hiddify import link, got: %s", out)
+	}
+	if strings.Contains(out, "\"outbounds\"") {
+		t.Fatalf("raw config should be gated behind --config, but was printed: %s", out)
+	}
+	// The QR PNG must be written next to the client's JSON.
+	if _, err := os.Stat(filepath.Join(dir, "clients", "granny.png")); err != nil {
+		t.Fatalf("client add should save a QR PNG: %v", err)
+	}
+}
+
+func TestClientAddConfigFlagPrintsJSON(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
+	out := run(t, "--dir", dir, "client", "add", "granny", "--config")
 	if !strings.Contains(out, "\"outbounds\"") || !strings.Contains(out, "reality") {
-		t.Fatalf("expected a sing-box config, got: %s", out)
+		t.Fatalf("--config should print the sing-box config, got: %s", out)
+	}
+}
+
+func TestClientQRReprints(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru.example.net", "--eu-host", "eu.example.net")
+	run(t, "--dir", dir, "client", "add", "granny")
+	out := run(t, "--dir", dir, "client", "qr", "granny")
+	if !strings.Contains(out, "hiddify://import/") {
+		t.Fatalf("client qr should reprint the import link, got: %s", out)
+	}
+	if err := runErr(t, "--dir", dir, "client", "qr", "nobody"); err == nil {
+		t.Fatal("client qr for a missing client should error")
 	}
 }
 

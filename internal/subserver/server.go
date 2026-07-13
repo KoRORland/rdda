@@ -52,8 +52,13 @@ func Handler(store *state.Store) http.Handler {
 			fail(w, "/sub Build", err)
 			return
 		}
+		// Name the profile so Hiddify doesn't show it as "UNKNOWN": the HTTP header
+		// names URL subscriptions, the ImportHeader comment names file/clipboard
+		// imports (Hiddify strips the //-lines before JSON-parsing).
+		w.Header().Set("Profile-Title", subscription.ProfileTitleHeader())
+		w.Header().Set("Profile-Update-Interval", "24")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(body))
+		_, _ = w.Write([]byte(subscription.ImportHeader() + body))
 	})
 	mux.HandleFunc("/ru/config", func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := store.LoadConfig()
