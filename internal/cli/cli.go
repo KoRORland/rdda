@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/KoRORland/rdda/internal/cfconfig"
 	"github.com/KoRORland/rdda/internal/keys"
@@ -139,6 +143,7 @@ func newClientCmd(dir *string) *cobra.Command {
 
 	var addFP string
 	var addConfig bool
+	var dataURI bool
 	add := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Add a client and print its Hiddify import QR + link",
@@ -157,7 +162,7 @@ func newClientCmd(dir *string) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "client %q added (fingerprint: %s)\n", c.Name, c.Fingerprint)
-			if err := emitClientImport(cmd, s, cfg, c); err != nil {
+			if err := emitClientImport(cmd, s, cfg, c, dataURI); err != nil {
 				return err
 			}
 			if addConfig {
@@ -172,6 +177,7 @@ func newClientCmd(dir *string) *cobra.Command {
 	}
 	add.Flags().StringVar(&addFP, "fingerprint", "", "uTLS fingerprint to pin ("+state.FingerprintList()+"); default: random per client")
 	add.Flags().BoolVar(&addConfig, "config", false, "also print the raw sing-box config JSON")
+	add.Flags().BoolVar(&dataURI, "data-uri", false, "also print a data:image/png URI of the QR (paste into a browser to view/scan from a headless box)")
 
 	qrCmd := &cobra.Command{
 		Use:     "qr <name>",
@@ -191,9 +197,10 @@ func newClientCmd(dir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return emitClientImport(cmd, s, cfg, c)
+			return emitClientImport(cmd, s, cfg, c, dataURI)
 		},
 	}
+	qrCmd.Flags().BoolVar(&dataURI, "data-uri", false, "also print a data:image/png URI of the QR (paste into a browser to view/scan from a headless box)")
 
 	show := &cobra.Command{
 		Use:   "show <name>",
@@ -214,7 +221,7 @@ func newClientCmd(dir *string) *cobra.Command {
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "client %q (fingerprint: %s, created: %s)\n",
 				c.Name, c.FingerprintOr(cfg.FP()), c.Created.Format("2006-01-02"))
-			if err := emitClientImport(cmd, s, cfg, c); err != nil {
+			if err := emitClientImport(cmd, s, cfg, c, dataURI); err != nil {
 				return err
 			}
 			body, err := subscription.Build(cfg, c)
@@ -225,6 +232,7 @@ func newClientCmd(dir *string) *cobra.Command {
 			return nil
 		},
 	}
+	show.Flags().BoolVar(&dataURI, "data-uri", false, "also print a data:image/png URI of the QR (paste into a browser to view/scan from a headless box)")
 
 	rm := &cobra.Command{
 		Use:   "rm <name>",
@@ -277,13 +285,15 @@ func findClientByName(s *state.Store, name string) (state.Client, error) {
 	return state.Client{}, fmt.Errorf("client %q not found", name)
 }
 
-// emitClientImport saves (and, when small enough to stay scannable, prints) a QR
-// that embeds the client's full sing-box config as data — not a link. The payload
-// references only the RU entry node, so it exposes nothing about the EU exit and
-// the user imports it offline (no server fetch, nothing to time out or reveal).
-// The PNG (chowned to the service user) is the artifact the operator hands over.
-// Shared by `client add`, `client qr`, and `client show`.
-func emitClientImport(cmd *cobra.Command, s *state.Store, cfg state.Config, c state.Client) error {
+// emitClientImport saves a QR that embeds the client's full sing-box config as
+// data — not a link. The payload references only the RU entry node, so it exposes
+// nothing about the EU exit and the user imports it offline (no server fetch,
+// nothing to time out or reveal). The PNG (chowned to the service user) is the
+// artifact the operator hands over. It also renders the QR inline when the
+// terminal is wide enough, and, with dataURI, prints a data: URI of the PNG so an
+// operator on a headless box can view/scan it via a browser. Shared by `client
+// add`, `client qr`, and `client show`.
+func emitClientImport(cmd *cobra.Command, s *state.Store, cfg state.Config, c state.Client, dataURI bool) error {
 	payload, err := subscription.QRPayload(cfg, c)
 	if err != nil {
 		return err
@@ -295,19 +305,50 @@ func emitClientImport(cmd *cobra.Command, s *state.Store, cfg state.Config, c st
 	}
 	s.ChownServiceFile(pngPath)
 	fmt.Fprintf(out, "Hiddify QR (offline — holds the config, no server needed): %s\n", pngPath)
-	// A full-config payload makes a high-version QR that a terminal can't render
-	// legibly; only draw it inline when it's small enough to actually scan.
-	if len(payload) <= terminalQRMax {
-		if art, err := qr.Terminal(payload); err == nil {
-			fmt.Fprintln(out, art)
+
+	// The full-config payload makes a dense, high-version QR. Render it inline only
+	// when the terminal is genuinely wide enough to show it un-wrapped — a wrapped
+	// QR is an unscannable mess, which is worse than not showing it at all.
+	art, aerr := qr.Terminal(payload)
+	switch {
+	case aerr == nil && terminalWidth() >= qrArtWidth(art):
+		fmt.Fprintln(out, art)
+	case !dataURI:
+		fmt.Fprintf(out, "(terminal too narrow to show the QR inline — send %s, or re-run with --data-uri)\n", pngPath)
+	}
+
+	if dataURI {
+		b, err := os.ReadFile(pngPath)
+		if err != nil {
+			return err
 		}
+		fmt.Fprintf(out, "data:image/png;base64,%s\n", base64.StdEncoding.EncodeToString(b))
 	}
 	return nil
 }
 
-// terminalQRMax is the payload size above which an inline (terminal) QR becomes
-// too dense to scan off a screen, so we emit only the PNG.
-const terminalQRMax = 300
+// terminalWidth returns the width of the controlling terminal in columns, or 0
+// when stdout isn't a terminal (piped, redirected, tests) — in which case the
+// caller skips the inline QR.
+func terminalWidth() int {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0
+	}
+	return w
+}
+
+// qrArtWidth is the widest line (in runes) of a rendered terminal QR — the number
+// of columns it needs to display without wrapping.
+func qrArtWidth(art string) int {
+	w := 0
+	for _, line := range strings.Split(art, "\n") {
+		if n := len([]rune(line)); n > w {
+			w = n
+		}
+	}
+	return w
+}
 
 func newRenderCmd(dir *string) *cobra.Command {
 	var clientUUID string

@@ -98,7 +98,10 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
    rdda client qr aunt-olga     # re-save the QR later (alias: link)
    rdda client show aunt-olga   # full view: details + QR + sing-box config
    ```
-   Add `--config` to `client add` if you need the raw sing-box JSON as well.
+   Add `--config` to `client add` for the raw sing-box JSON. On a headless node
+   (no way to open the PNG), add `--data-uri` to print a `data:image/png;base64,…`
+   line — paste it into any browser to view or scan the QR. The QR also renders
+   inline when the terminal is wide enough (the full-config code needs ~125 cols).
 
 See [`deploy/install-eu.md`](deploy/install-eu.md) and [`deploy/install-ru.md`](deploy/install-ru.md) for the detailed walkthrough.
 
