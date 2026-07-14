@@ -9,8 +9,12 @@ import (
 )
 
 func TestRun_WritesAtomicallyAndReloads(t *testing.T) {
+	var gotHeader, gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("token") != "tok" {
+		gotHeader = r.Header.Get("Authorization")
+		gotQuery = r.URL.Query().Get("token")
+		// Authenticate on the Bearer header (F-2), the transport the client now uses.
+		if gotHeader != "Bearer tok" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -31,6 +35,13 @@ func TestRun_WritesAtomicallyAndReloads(t *testing.T) {
 	}
 	if !reloaded {
 		t.Fatal("Reload was not called")
+	}
+	// The token must ride the Authorization header; the query is the bridge.
+	if gotHeader != "Bearer tok" {
+		t.Fatalf("Authorization = %q, want %q", gotHeader, "Bearer tok")
+	}
+	if gotQuery != "tok" {
+		t.Fatalf("bridge query token = %q, want tok", gotQuery)
 	}
 }
 

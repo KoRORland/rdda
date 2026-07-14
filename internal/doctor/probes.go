@@ -36,9 +36,18 @@ func realDialDest(host string, port int) error {
 // body, and the served leaf cert's NotAfter (zero for plaintext). The body lets
 // callers confirm they reached the intended origin, not just that *something*
 // answered 200.
-func realHTTPProbe(probeURL string) (int, []byte, time.Time, error) {
+func realHTTPProbe(probeURL, bearer string) (int, []byte, time.Time, error) {
 	client := &http.Client{Timeout: 12 * time.Second}
-	resp, err := client.Get(probeURL)
+	req, err := http.NewRequest(http.MethodGet, probeURL, nil)
+	if err != nil {
+		return 0, nil, time.Time{}, err
+	}
+	// Authenticate with the Authorization: Bearer header (F-2), matching the RU
+	// pull/health clients. The URL may also carry ?token= as the migration bridge.
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, time.Time{}, err
 	}

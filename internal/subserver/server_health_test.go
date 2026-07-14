@@ -18,15 +18,24 @@ func TestRUHealthEndpoint(t *testing.T) {
 	h := Handler(store)
 	body := `{"singbox_active":true,"singbox_version":"1.13.14"}`
 
-	// valid POST
+	// valid POST via Authorization: Bearer header (F-2 — the intended transport)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/ru/health?token=secret-tok", strings.NewReader(body)))
+	req := httptest.NewRequest(http.MethodPost, "/ru/health", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret-tok")
+	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("valid beat: got %d", rec.Code)
+		t.Fatalf("valid beat via header: got %d", rec.Code)
 	}
 	got, ok, _ := store.LoadRUHealth()
 	if !ok || !got.SingboxActive || got.ReceivedAt.IsZero() {
 		t.Fatalf("beat not stored: %+v ok=%v", got, ok)
+	}
+
+	// valid POST via legacy ?token= query (the one-release bridge still works)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/ru/health?token=secret-tok", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("valid beat via query bridge: got %d", rec.Code)
 	}
 
 	// bad token

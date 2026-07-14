@@ -38,7 +38,7 @@ type Check struct {
 type Doctor struct {
 	dir        string
 	unitActive func(unit string) bool
-	httpProbe  func(probeURL string) (code int, body []byte, notAfter time.Time, err error)
+	httpProbe  func(probeURL, bearer string) (code int, body []byte, notAfter time.Time, err error)
 	dialDest   func(host string, port int) error
 	egress     func(singboxConfig []byte, probeURL string) (ok bool, err error)
 	cfInfo     func(tunnelID string) (connectors int, err error)
@@ -99,7 +99,7 @@ func (d *Doctor) runRU(probeURL string) []Check {
 	if from == "" {
 		cs = append(cs, Check{"control channel", WARN, "pull not configured (/etc/rdda/pull.env)", ""})
 	} else {
-		code, body, _, err := d.httpProbe(withToken(from, token))
+		code, body, _, err := d.httpProbe(withToken(from, token), token)
 		switch {
 		case err != nil:
 			cs = append(cs, Check{"control channel", FAIL, fmt.Sprintf("%s: %v", from, err), "check Cloudflare/cloudflared and the EU sub server"})
@@ -184,7 +184,7 @@ func (d *Doctor) runEU() []Check {
 		cs = append(cs, Check{"sub endpoint", WARN, "Cloudflare sub endpoint not configured", ""})
 	} else {
 		u := "https://" + cfg.Cloudflare.SubHostname + "/ru/config"
-		code, body, notAfter, err := d.httpProbe(withToken(u, cfg.PullToken))
+		code, body, notAfter, err := d.httpProbe(withToken(u, cfg.PullToken), cfg.PullToken)
 		switch {
 		case err != nil:
 			cs = append(cs, Check{"sub endpoint", FAIL, fmt.Sprintf("%s: %v", u, err), "check the Cloudflare tunnel + rdda-sub"})
@@ -224,6 +224,10 @@ func (d *Doctor) runEU() []Check {
 
 // --- helpers ---
 
+// withToken appends the legacy ?token= query — the one-release bridge for a sub
+// server not yet reading the Authorization header. The probe also sends the
+// header (see realHTTPProbe); this keeps doctor green against an un-updated EU
+// node. TODO(next release): drop this and probe with the header only.
 func withToken(rawURL, token string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {

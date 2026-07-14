@@ -35,7 +35,9 @@ func fakeDoctor(dir string) *Doctor {
 	d := New(dir)
 	d.unitActive = func(string) bool { return true }
 	d.dialDest = func(string, int) error { return nil }
-	d.httpProbe = func(string) (int, []byte, time.Time, error) { return 200, []byte(`{"outbounds":[]}`), time.Time{}, nil }
+	d.httpProbe = func(string, string) (int, []byte, time.Time, error) {
+		return 200, []byte(`{"outbounds":[]}`), time.Time{}, nil
+	}
 	d.egress = func([]byte, string) (bool, error) { return true, nil }
 	d.cfInfo = func(string) (int, error) { return 2, nil }
 	d.svcUser = func() (int, int, error) { return 1000, 1000, nil }
@@ -73,7 +75,9 @@ func TestControlChannel_WrongOrigin200Fails(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := fakeDoctor(dir)
-	d.httpProbe = func(string) (int, []byte, time.Time, error) { return 200, []byte("Hello World!"), time.Time{}, nil }
+	d.httpProbe = func(string, string) (int, []byte, time.Time, error) {
+		return 200, []byte("Hello World!"), time.Time{}, nil
+	}
 	for _, c := range d.Run("http://probe") {
 		if c.Name == "control channel" {
 			if c.Status != FAIL {

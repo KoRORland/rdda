@@ -40,9 +40,10 @@ func TestRandomPadVaries(t *testing.T) {
 }
 
 func TestSend(t *testing.T) {
-	var gotToken, gotMethod string
+	var gotHeader, gotQuery, gotMethod string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		gotToken = req.URL.Query().Get("token")
+		gotHeader = req.Header.Get("Authorization")
+		gotQuery = req.URL.Query().Get("token")
 		gotMethod = req.Method
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -50,8 +51,16 @@ func TestSend(t *testing.T) {
 	if err := Send(srv.Client(), srv.URL, "tok-123", Report{}); err != nil {
 		t.Fatal(err)
 	}
-	if gotMethod != http.MethodPost || gotToken != "tok-123" {
-		t.Fatalf("method=%s token=%s", gotMethod, gotToken)
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method=%s", gotMethod)
+	}
+	// The token must travel in the Authorization header (F-2). The query is kept
+	// as a one-release bridge, so it is still present for now.
+	if gotHeader != "Bearer tok-123" {
+		t.Fatalf("Authorization header = %q, want %q", gotHeader, "Bearer tok-123")
+	}
+	if gotQuery != "tok-123" {
+		t.Fatalf("bridge query token = %q, want tok-123", gotQuery)
 	}
 }
 

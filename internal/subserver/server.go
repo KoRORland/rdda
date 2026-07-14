@@ -24,6 +24,19 @@ func fail(w http.ResponseWriter, route string, err error) {
 	http.Error(w, "internal error", http.StatusInternalServerError)
 }
 
+// controlToken extracts the RU control-channel token, preferring an
+// `Authorization: Bearer <token>` header and falling back to the legacy
+// `?token=` query string. Query strings leak into access logs / Referer /
+// history, so the header is the intended transport (F-2); the query fallback is
+// a one-release bridge so an RU node that has not yet updated keeps
+// authenticating. TODO(next release): drop the query fallback.
+func controlToken(r *http.Request) string {
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
+	}
+	return r.URL.Query().Get("token")
+}
+
 // Handler serves GET /sub/<token>.
 func Handler(store *state.Store) http.Handler {
 	mux := http.NewServeMux()
@@ -70,7 +83,7 @@ func Handler(store *state.Store) http.Handler {
 			http.NotFound(w, r) // pull-sync not enabled: do not advertise the endpoint
 			return
 		}
-		token := r.URL.Query().Get("token")
+		token := controlToken(r)
 		if subtle.ConstantTimeCompare([]byte(token), []byte(cfg.PullToken)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -102,7 +115,7 @@ func Handler(store *state.Store) http.Handler {
 			http.NotFound(w, r) // pull-sync not enabled: do not advertise the endpoint
 			return
 		}
-		token := r.URL.Query().Get("token")
+		token := controlToken(r)
 		if subtle.ConstantTimeCompare([]byte(token), []byte(cfg.PullToken)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return

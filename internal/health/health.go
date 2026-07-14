@@ -70,7 +70,10 @@ func Gather(run Runner, rddaVersion string) Report {
 	}
 }
 
-// Send POSTs the report to endpoint?token=token (the EU /ru/health URL).
+// Send POSTs the report to the EU /ru/health URL, authenticating with an
+// Authorization: Bearer header. It also sets the legacy ?token= query as a
+// one-release bridge for an EU node not yet reading the header (F-2).
+// TODO(next release): drop the query param.
 func Send(client *http.Client, endpoint, token string, r Report) error {
 	body, err := json.Marshal(r)
 	if err != nil {
@@ -88,6 +91,7 @@ func Send(client *http.Client, endpoint, token string, r Report) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
