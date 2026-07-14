@@ -33,6 +33,25 @@ jobs:
           out="$(./dist/rdda-linux-amd64 version)"
           echo "version output: $out"
           test "$out" = "${GITHUB_REF_NAME}"
+      - name: Sign SHA256SUMS (minisign)
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$MINISIGN_SECRET_KEY" || { echo "MINISIGN_SECRET_KEY secret is not set"; exit 1; }
+          sudo apt-get update && sudo apt-get install -y minisign
+          printf '%s\n' "$MINISIGN_SECRET_KEY" > /tmp/minisign.key
+          minisign -S -s /tmp/minisign.key -m dist/SHA256SUMS \
+            -t "rdda ${GITHUB_REF_NAME}" -c "rdda release signature" </dev/null
+          shred -u /tmp/minisign.key
+          # Self-verify against the public key embedded in the binary, so a
+          # key/secret mismatch fails the release instead of publishing an
+          # asset that no deployed client can verify.
+          PUB="$(tail -n1 internal/verify/minisign.pub)"
+          case "$PUB" in
+            *PLACEHOLDER-UNSIGNED*) echo "internal/verify/minisign.pub is still the placeholder — embed the real key before releasing"; exit 1;;
+          esac
+          minisign -Vm dist/SHA256SUMS -P "$PUB" -x dist/SHA256SUMS.minisig
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -41,6 +60,7 @@ jobs:
             dist/rdda-linux-amd64
             dist/rdda-linux-arm64
             dist/SHA256SUMS
+            dist/SHA256SUMS.minisig
 
   # Post-publish: prove a user on the PREVIOUS release can `rdda update` to this
   # one, against the real published assets. Exercises the download+retry,

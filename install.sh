@@ -8,6 +8,13 @@ BIN_DST="/usr/local/bin/rdda"
 STATE_DIR="/etc/rdda"
 UNIT_DIR="/etc/systemd/system"
 
+# Maintainer's minisign release-signing public key: the base64 line printed by
+# `minisign -G` (must match internal/verify/minisign.pub). Replace the
+# placeholder before cutting a signed release; see docs/RELEASING.md. While it is
+# the placeholder, installs verify the checksum only (today's behavior); once a
+# real key is set, a valid signature over SHA256SUMS becomes mandatory. (F-1)
+MAINTAINER_PUBKEY="PLACEHOLDER-UNSIGNED"
+
 log()  { printf '\033[1;34m[rdda]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[rdda]\033[0m %s\n' "$*" >&2; }
 fail() { printf '\033[1;31m[rdda] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -77,6 +84,24 @@ trap 'rm -rf "$TMP"' EXIT
 BASE="https://github.com/${REPO}/releases/download/${TAG}"
 fetch "${BASE}/rdda-linux-${ARCH}" -o "${TMP}/rdda-linux-${ARCH}"
 fetch "${BASE}/SHA256SUMS"         -o "${TMP}/SHA256SUMS"
+# Verify the maintainer's signature over SHA256SUMS before trusting any checksum
+# in it: a digest only proves the binary matches what the release serves; the
+# signature proves the maintainer signed that SHA256SUMS. Same-origin checksums
+# are exactly the trust this project cannot assume. (F-1)
+if printf '%s' "$MAINTAINER_PUBKEY" | grep -q 'PLACEHOLDER-UNSIGNED'; then
+  warn "release signing not configured (placeholder key): verifying checksum only. See docs/RELEASING.md."
+else
+  command -v minisign >/dev/null 2>&1 || {
+    log "installing minisign (to verify the release signature)"
+    apt-get update -y && apt-get install -y minisign \
+      || fail "could not install minisign to verify the release signature"
+  }
+  fetch "${BASE}/SHA256SUMS.minisig" -o "${TMP}/SHA256SUMS.minisig" \
+    || fail "release signature (SHA256SUMS.minisig) missing — refusing to install an unsigned release"
+  minisign -Vm "${TMP}/SHA256SUMS" -P "$MAINTAINER_PUBKEY" -x "${TMP}/SHA256SUMS.minisig" >/dev/null 2>&1 \
+    || fail "release signature verification failed for ${TAG} — refusing to install"
+  log "release signature verified (minisign)"
+fi
 ( cd "$TMP" && grep "rdda-linux-${ARCH}\$" SHA256SUMS | sha256sum -c - ) \
   || fail "checksum verification failed for rdda-linux-${ARCH}"
 install -m 0755 "${TMP}/rdda-linux-${ARCH}" "$BIN_DST"
