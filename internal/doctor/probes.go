@@ -21,10 +21,16 @@ import (
 )
 
 // realDialDest opens a TLS 1.3 handshake (REALITY-dest reachability).
+//
+// InsecureSkipVerify is deliberate and safe ONLY here: this is a reachability
+// probe of a REALITY handshake destination, where certificate identity is not
+// the question and no user traffic flows over this connection. Do NOT copy this
+// tls.Config onto any path that carries real data — there it would disable the
+// authentication that keeps the tunnel secure.
 func realDialDest(host string, port int) error {
 	conn, err := tls.DialWithDialer(
 		&net.Dialer{Timeout: 8 * time.Second}, "tcp", net.JoinHostPort(host, strconv.Itoa(port)),
-		&tls.Config{ServerName: host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec
+		&tls.Config{ServerName: host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec // probe-only; never on a data path
 	)
 	if err != nil {
 		return err

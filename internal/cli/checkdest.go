@@ -55,10 +55,16 @@ func extractRealityDest(cfgJSON []byte) (realityDest, bool) {
 }
 
 // dialReality opens a TLS 1.3 handshake to a REALITY dest; nil means reachable.
+//
+// InsecureSkipVerify is deliberate and safe ONLY here: this is a reachability
+// probe of a REALITY handshake destination, where certificate identity is not
+// the question and no user traffic flows over this connection. Do NOT copy this
+// tls.Config onto any path that carries real data — there it would disable the
+// authentication that keeps the tunnel secure.
 func dialReality(dest realityDest) error {
 	conn, err := tls.DialWithDialer(
 		&net.Dialer{Timeout: 8 * time.Second}, "tcp", net.JoinHostPort(dest.host, strconv.Itoa(dest.port)),
-		&tls.Config{ServerName: dest.host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec
+		&tls.Config{ServerName: dest.host, MinVersion: tls.VersionTLS13, InsecureSkipVerify: true}, //nolint:gosec // probe-only; never on a data path
 	)
 	if err != nil {
 		return err
