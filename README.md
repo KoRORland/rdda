@@ -39,19 +39,22 @@ safety. Hence the name.
 - **Doesn't snitch on itself.** The in-Russia node exposes no management surface and looks
   like a normal web server to anyone poking at it.
 
-> 🟢 **Status: `v0.4.0` released** — a **deployment-hardening** release forged by
-> the first real two-node production bring-up (RU Moscow + EU AWS + Cloudflare).
-> It makes provisioning reliable, hands-off, and self-checking: idempotent
-> installs that survive flaky GitHub-from-RU, one-command Cloudflare bring-up
-> (`rdda cf setup`, with DNS-routing verification so a silent no-op can't ship a
-> dead endpoint), one-command RU control channel (`rdda control-channel`), a
-> `doctor` that validates **content + routing + permissions** (not just a lying
-> `200`/`active`), a safe-by-default obfuscation layer, and per-client uTLS
-> fingerprint randomization. Built on the v0.3 **single sing-box** data plane
-> (VLESS + REALITY + multiplex on the inspected hop, VLESS + WebSocket over
-> Cloudflare). Latest build:
-> [**releases/v0.4.0**](https://github.com/KoRORland/rdda/releases/tag/v0.4.0).
-> See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
+> 🟢 **Status: `v0.5.0` released** — a **security-hardening** release that closes
+> an adversarial third-party review of the whole codebase. Its keystone: an
+> **unimpeachable release trust chain** — every release is **minisign-signed** and
+> `rdda update` / `install.sh` verify that signature against an embedded maintainer
+> key before installing anything, so a substituted binary is rejected (root
+> auto-update is now opt-in / off by default). Plus: the RU control-channel token
+> moved out of the URL into an `Authorization` header, per-IP rate limiting on the
+> control endpoints, a published [`SECURITY.md`](SECURITY.md) threat model, an
+> enforced no-logs posture, verify-before-run installs, and off-node encrypted
+> backups. Built on the v0.4 **deployment-hardening** work (idempotent installs,
+> `rdda cf setup`, `rdda control-channel`, a content+routing+permissions `doctor`)
+> and the v0.3 **single sing-box** data plane (VLESS + REALITY + multiplex on the
+> inspected hop, VLESS + WebSocket over Cloudflare). Latest build:
+> [**releases/v0.5.0**](https://github.com/KoRORland/rdda/releases/tag/v0.5.0).
+> See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and
+> [`SECURITY.md`](SECURITY.md) for the threat model.
 
 ## How it works (the 30-second version)
 
@@ -82,7 +85,7 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
 > installer unverified from the network, fetch it from a release, check its signature
 > against that key, read it, then run it:
 > ```bash
-> V=v0.4.6   # the release you intend to install
+> V=v0.5.0   # the release you intend to install
 > base="https://github.com/KoRORland/rdda/releases/download/$V"
 > curl -fsSLO "$base/install.sh" && curl -fsSLO "$base/install.sh.minisig"
 > minisign -Vm install.sh -x install.sh.minisig \

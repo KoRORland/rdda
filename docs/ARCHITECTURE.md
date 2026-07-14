@@ -8,8 +8,8 @@ This is the high-level design. It deliberately favors **fewer moving parts, well
 maintained components, and observability** over cleverness. See `basic design layout.txt`
 for the original requirements seed.
 
-> **Implementation status — [`v0.4.0`](https://github.com/KoRORland/rdda/releases/tag/v0.4.0)
-> (deployment hardening).** The DPI-facing core is shipped and integration-gated: 2-hop
+> **Implementation status — [`v0.5.0`](https://github.com/KoRORland/rdda/releases/tag/v0.5.0)
+> (security hardening).** The DPI-facing core is shipped and integration-gated: 2-hop
 > sing-box data plane, client onboarding, sub server, Cloudflare ingress, nfqws2 egress desync,
 > and config pull-sync. v0.3 added the operator tooling (`status`, `doctor`, encrypted
 > `backup`/`restore`, email `alert`, self-`update` + `heal`). **v0.4** — forged by the first
@@ -18,8 +18,13 @@ for the original requirements seed.
 > with DNS-route verification; one-command RU control channel (`rdda control-channel`); a
 > `doctor` that validates response **body + routing + service-user permissions** (not a lying
 > `200`/`active`); nfqws2 made safe-by-default (fooling method + scoped rule + opt-in); and
-> per-client uTLS fingerprint randomization. Not yet built (designed below, on the roadmap):
-> RU failover and key rotation. Sections marked *(planned)* call out the gaps inline.
+> per-client uTLS fingerprint randomization. **v0.5** — from an adversarial security review —
+> closes the trust chain: **minisign-signed releases** verified before install/update (root
+> auto-update now opt-in), control-channel token in an `Authorization` header, per-IP rate
+> limiting, a published [`SECURITY.md`](../SECURITY.md) threat model, an enforced no-logs
+> posture, and off-node encrypted backups. Not yet built (designed below, on the roadmap):
+> RU failover, key rotation, and the v0.6+ adaptive-adversary program (node pooling/rotation,
+> transport agility, CDN diversity). Sections marked *(planned)* call out the gaps inline.
 
 ---
 
