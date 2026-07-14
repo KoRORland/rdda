@@ -43,6 +43,12 @@ jobs:
           printf '%s\n' "$MINISIGN_SECRET_KEY" > /tmp/minisign.key
           minisign -S -s /tmp/minisign.key -m dist/SHA256SUMS \
             -t "rdda ${GITHUB_REF_NAME}" -c "rdda release signature" </dev/null
+          # Also sign the installer itself, so an operator can verify-before-run
+          # (download install.sh + .minisig, check against the published key, then
+          # execute) instead of piping unverified code from the network. (F-3)
+          cp install.sh dist/install.sh
+          minisign -S -s /tmp/minisign.key -m dist/install.sh \
+            -t "rdda ${GITHUB_REF_NAME} installer" -c "rdda installer signature" </dev/null
           shred -u /tmp/minisign.key
           # Self-verify against the public key embedded in the binary, so a
           # key/secret mismatch fails the release instead of publishing an
@@ -52,6 +58,7 @@ jobs:
             *PLACEHOLDER-UNSIGNED*) echo "internal/verify/minisign.pub is still the placeholder — embed the real key before releasing"; exit 1;;
           esac
           minisign -Vm dist/SHA256SUMS -P "$PUB" -x dist/SHA256SUMS.minisig
+          minisign -Vm dist/install.sh -P "$PUB" -x dist/install.sh.minisig
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -61,6 +68,8 @@ jobs:
             dist/rdda-linux-arm64
             dist/SHA256SUMS
             dist/SHA256SUMS.minisig
+            dist/install.sh
+            dist/install.sh.minisig
 
   # Post-publish: prove a user on the PREVIOUS release can `rdda update` to this
   # one, against the real published assets. Exercises the download+retry,

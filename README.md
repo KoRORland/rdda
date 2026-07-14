@@ -72,9 +72,27 @@ Full design and rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 You need **two Ubuntu 24.04 VPSes** — one in Russia (RU), one abroad (EU).
 
-The installer pulls the latest published release (currently **v0.4.0**, checksum-verified
+The installer pulls the latest published release (**minisign-signed**, checksum-verified
 amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
-`--version v0.4.0` to either `bash -s --` line below.
+`--version vX.Y.Z` to either `bash -s --` line below.
+
+> **Verify before you run (recommended).** Releases are signed with
+> [minisign](https://jedisct1.github.io/minisign/). The maintainer's public key is
+> **`RWRh5VJfv+qkR3I5cQu8ODzMGTEsGZAdKcvOA2hbvQWnw1iYxKbIeuwa`**. Rather than piping the
+> installer unverified from the network, fetch it from a release, check its signature
+> against that key, read it, then run it:
+> ```bash
+> V=v0.4.6   # the release you intend to install
+> base="https://github.com/KoRORland/rdda/releases/download/$V"
+> curl -fsSLO "$base/install.sh" && curl -fsSLO "$base/install.sh.minisig"
+> minisign -Vm install.sh -x install.sh.minisig \
+>   -P RWRh5VJfv+qkR3I5cQu8ODzMGTEsGZAdKcvOA2hbvQWnw1iYxKbIeuwa
+> less install.sh                 # read what you're about to run as root
+> sudo bash install.sh eu         # or: ru
+> ```
+> The installer then verifies the signature on every binary it downloads, so once you
+> trust `install.sh` the rest of the chain is checked automatically. The `curl … | sudo bash`
+> one-liners below are the convenient path; the block above is the careful one.
 
 1. **EU node** (SSH is fine here):
    ```bash
