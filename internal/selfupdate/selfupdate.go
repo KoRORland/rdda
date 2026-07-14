@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/KoRORland/rdda/internal/verify"
 )
 
 const (
@@ -30,7 +32,8 @@ type Updater struct {
 	current    string
 	binPath    string
 	resolveTag func() (string, error)
-	fetch      func(tag, arch string) (bin []byte, sum string, err error)
+	fetch      func(tag, arch string) (bin []byte, sums, sig string, err error)
+	loadKey    func() (*verify.PublicKey, error)
 	restart    func(unit string) error
 	isActive   func(unit string) bool
 	unitExists func(unit string) bool
@@ -43,6 +46,7 @@ func New(current string) *Updater {
 	u := &Updater{arch: goarch(), current: current, binPath: binPathDefault, sleep: time.Sleep}
 	u.resolveTag = resolveLatestTag
 	u.fetch = fetchRelease
+	u.loadKey = verify.Maintainer
 	u.restart = func(unit string) error { return exec.Command("systemctl", "restart", unit).Run() }
 	u.isActive = func(unit string) bool {
 		out, _ := exec.Command("systemctl", "is-active", unit).CombinedOutput()
@@ -89,9 +93,26 @@ func (u *Updater) Update() (from, to string, err error) {
 	if to == u.current {
 		return u.current, u.current, nil
 	}
-	bin, sum, err := u.fetch(to, u.arch)
+	// Load the embedded signing key first: a build without a real key must fail
+	// closed here, before any download, rather than fall back to no verification.
+	key, err := u.loadKey()
 	if err != nil {
 		return u.current, to, err
+	}
+	bin, sums, sig, err := u.fetch(to, u.arch)
+	if err != nil {
+		return u.current, to, err
+	}
+	// The signature over SHA256SUMS is the trust gate. A digest only proves the
+	// binary matches what the release serves; the signature proves the maintainer
+	// signed that SHA256SUMS. Verify it before extracting the digest or touching
+	// any file, so a substituted binary + attacker-generated checksum is rejected.
+	if err := key.Verify([]byte(sums), sig); err != nil {
+		return u.current, to, fmt.Errorf("release signature verification failed: %w", err)
+	}
+	sum := sumFor(sums, "rdda-linux-"+u.arch)
+	if sum == "" {
+		return u.current, to, fmt.Errorf("no checksum for rdda-linux-%s in SHA256SUMS", u.arch)
 	}
 	if got := sha256hex(bin); !strings.EqualFold(got, sum) {
 		return u.current, to, fmt.Errorf("checksum mismatch: got %s want %s", got, sum)
@@ -222,21 +243,24 @@ func resolveLatestTag() (string, error) {
 	return doc.TagName, nil
 }
 
-func fetchRelease(tag, arch string) ([]byte, string, error) {
+func fetchRelease(tag, arch string) (bin []byte, sums, sig string, err error) {
 	base := "https://github.com/" + repo + "/releases/download/" + tag
-	bin, err := httpGetBytes(base + "/rdda-linux-" + arch)
+	bin, err = httpGetBytes(base + "/rdda-linux-" + arch)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
-	sums, err := httpGetBytes(base + "/SHA256SUMS")
+	sumsBytes, err := httpGetBytes(base + "/SHA256SUMS")
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
-	sum := sumFor(string(sums), "rdda-linux-"+arch)
-	if sum == "" {
-		return nil, "", fmt.Errorf("no checksum for rdda-linux-%s in SHA256SUMS", arch)
+	// The detached minisign signature over SHA256SUMS. Its absence is a hard
+	// failure: an unsigned release must not be installable by a signing-aware
+	// client (fail closed), and a stable asset name keeps this resolvable.
+	sigBytes, err := httpGetBytes(base + "/SHA256SUMS.minisig")
+	if err != nil {
+		return nil, "", "", fmt.Errorf("fetch release signature: %w", err)
 	}
-	return bin, sum, nil
+	return bin, string(sumsBytes), string(sigBytes), nil
 }
 
 // httpGetBytes fetches a URL with a per-attempt timeout and a few retries, so a

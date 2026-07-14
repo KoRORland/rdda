@@ -1,0 +1,2 @@
+untrusted comment: RDDA release-signing public key
+PLACEHOLDER-UNSIGNED — replace this file with the output of `minisign -G` before cutting a signed release. See docs/RELEASING.md. Until then, `rdda update` fails closed (it will not install an unverified release).
