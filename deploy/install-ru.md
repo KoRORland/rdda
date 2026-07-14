@@ -152,15 +152,19 @@ If a release runs but misbehaves, revert manually:
 
     sudo rdda update --rollback
 
-**Auto-update (enabled by the installer).** `rdda-update.timer` runs `rdda update`
-on a staggered (randomized) schedule so both nodes track new releases hands-off:
+**Opt-in auto-update (default off).** A disabled-by-default timer can run `rdda update`
+on a staggered (randomized) schedule so nodes track new releases hands-off:
 
-    systemctl status rdda-update.timer     # confirm it's active
+    sudo systemctl enable --now rdda-update.timer   # opt in
+    systemctl status rdda-update.timer              # confirm it's active
 
 It is staggered so a bad release does not hit every node at once.
-**Risk:** auto-rollback only catches a *broken* binary — a release that runs but is
-subtly wrong will deploy to every node. To opt out and update by hand:
-`sudo systemctl disable --now rdda-update.timer` (then use `rdda update` / `--rollback`).
+**Why it's off by default:** the timer self-updates the binary **as root**, and a
+release is currently verified only by a checksum from the same origin as the binary
+(no signature) — so auto-applying it unattended trusts the distribution channel
+completely. Auto-rollback also only catches a *broken* binary; a release that runs
+but is subtly wrong would still deploy. Leave it off and run `sudo rdda update`
+(with `--rollback` to revert) by hand unless you accept that trade-off.
 
 > **Note:** `rdda update` swaps only the **binary**. Changes shipped in systemd
 > units or the installer (e.g. new timers, the nfqws fooling flag) require a

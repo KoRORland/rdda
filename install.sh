@@ -182,8 +182,12 @@ if [ "$ROLE" = "ru" ]; then
 fi
 systemctl daemon-reload
 systemctl enable --now rdda-heal.timer
-# Binary self-update on a timer (both roles): track new releases automatically.
-systemctl enable --now rdda-update.timer
+# rdda-update.timer is OPT-IN (default off): it self-updates the binary AS ROOT,
+# and today the release is verified only by a checksum fetched from the same
+# origin as the binary (no signature). Auto-applying that unattended is the
+# highest-value target in the system, so it stays staged until an operator opts
+# in (and until release signing lands). Mirrors the rdda-nfqws staging below.
+log "rdda-update.timer staged (opt-in / default off); enable with: systemctl enable --now rdda-update.timer"
 log "installed systemd units (rdda-sub stays dormant on eu until v0.2)"
 if [ "$ROLE" = "ru" ]; then
   RAW_NFT="https://raw.githubusercontent.com/${REPO}/${TAG}/deploy/nftables"
