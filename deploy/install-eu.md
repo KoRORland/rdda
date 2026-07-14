@@ -58,6 +58,17 @@ The archive is encrypted (argon2id + XChaCha20-Poly1305). **The passphrase canno
 be recovered** — if you lose it, the backup is unreadable. For unattended use, set
 `RDDA_BACKUP_PASSPHRASE` or pass `--passphrase-file <file>` instead of the prompt.
 
+**Off-node copy (recommended).** A lost EU node with only a local backup is still a
+lost source of truth. `--push` streams the *already-encrypted* archive to a
+destination you control (it never leaves the node in the clear):
+
+    rdda backup --push 'rclone rcat remote:rdda/backup.rdda'
+    rdda backup --push "ssh backup-host 'cat > /backups/rdda.rdda'"
+
+The push runs before the local write, so a failed upload surfaces loudly instead
+of being hidden by a successful local file. Pair it with `rdda-backup`-style cron
+for hands-off off-site backups.
+
 To rebuild an EU node (fresh install, then):
 
     rdda restore rdda-backup.rdda          # refuses to overwrite unless --force
