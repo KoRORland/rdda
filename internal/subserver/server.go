@@ -5,11 +5,13 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/KoRORland/rdda/internal/health"
+	"github.com/KoRORland/rdda/internal/ratelimit"
 	"github.com/KoRORland/rdda/internal/singboxconf"
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subscription"
@@ -22,6 +24,34 @@ import (
 func fail(w http.ResponseWriter, route string, err error) {
 	log.Printf("subserver: %s: %v", route, err)
 	http.Error(w, "internal error", http.StatusInternalServerError)
+}
+
+// clientIP identifies the caller for rate limiting. Behind cloudflared every
+// request arrives from loopback, so the real client is in CF-Connecting-IP
+// (set by Cloudflare); fall back to the socket peer when that is absent.
+func clientIP(r *http.Request) string {
+	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
+		return ip
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+// limited wraps a handler with a per-client-IP token bucket, returning 429 when
+// a caller exceeds it — a basic abuse control on the token-checked control
+// channel (F-4). Scoped to /ru/* (hit only by the single RU node); /sub/ is left
+// unlimited so a real Hiddify client is never throttled.
+func limited(l *ratelimit.Limiter, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !l.Allow(clientIP(r)) {
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next(w, r)
+	}
 }
 
 // controlToken extracts the RU control-channel token, preferring an
@@ -40,6 +70,10 @@ func controlToken(r *http.Request) string {
 // Handler serves GET /sub/<token>.
 func Handler(store *state.Store) http.Handler {
 	mux := http.NewServeMux()
+	// The control channel is polled by exactly one RU node at multi-minute
+	// intervals, so a generous burst never touches legit traffic while still
+	// capping abuse: 30 requests burst, ~1/sec sustained, per client IP.
+	ctl := ratelimit.New(30, 1)
 	mux.HandleFunc("/sub/", func(w http.ResponseWriter, r *http.Request) {
 		token := strings.TrimPrefix(r.URL.Path, "/sub/")
 		if token == "" {
@@ -73,7 +107,7 @@ func Handler(store *state.Store) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(subscription.ImportHeader() + body))
 	})
-	mux.HandleFunc("/ru/config", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ru/config", limited(ctl, func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := store.LoadConfig()
 		if err != nil {
 			fail(w, "/ru/config LoadConfig", err)
@@ -100,8 +134,8 @@ func Handler(store *state.Store) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(b)
-	})
-	mux.HandleFunc("/ru/health", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("/ru/health", limited(ctl, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -130,6 +164,6 @@ func Handler(store *state.Store) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-	})
+	}))
 	return mux
 }

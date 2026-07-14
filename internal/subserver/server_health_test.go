@@ -52,3 +52,28 @@ func TestRUHealthEndpoint(t *testing.T) {
 		t.Fatalf("GET: got %d", rec.Code)
 	}
 }
+
+func TestControlChannelRateLimited(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := state.Open(dir)
+	if err := store.SaveConfig(state.Config{RUHost: "ru", PullToken: "secret-tok"}); err != nil {
+		t.Fatal(err)
+	}
+	h := Handler(store)
+	// Burst is 30 per IP; a flood from one caller must eventually get a 429.
+	// httptest.NewRequest gives every request the same RemoteAddr, so one bucket.
+	got429 := false
+	for i := 0; i < 40; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/ru/health", strings.NewReader(`{}`))
+		req.Header.Set("Authorization", "Bearer secret-tok")
+		h.ServeHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			got429 = true
+			break
+		}
+	}
+	if !got429 {
+		t.Fatal("expected a 429 after exceeding the per-IP burst")
+	}
+}
