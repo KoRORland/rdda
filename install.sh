@@ -13,7 +13,7 @@ UNIT_DIR="/etc/systemd/system"
 # placeholder before cutting a signed release; see docs/RELEASING.md. While it is
 # the placeholder, installs verify the checksum only (today's behavior); once a
 # real key is set, a valid signature over SHA256SUMS becomes mandatory. (F-1)
-MAINTAINER_PUBKEY="PLACEHOLDER-UNSIGNED"
+MAINTAINER_PUBKEY="RWRh5VJfv+qkR3I5cQu8ODzMGTEsGZAdKcvOA2hbvQWnw1iYxKbIeuwa"
 
 log()  { printf '\033[1;34m[rdda]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[rdda]\033[0m %s\n' "$*" >&2; }
