@@ -91,11 +91,12 @@ fetch "${BASE}/SHA256SUMS"         -o "${TMP}/SHA256SUMS"
 if printf '%s' "$MAINTAINER_PUBKEY" | grep -q 'PLACEHOLDER-UNSIGNED'; then
   warn "release signing not configured (placeholder key): verifying checksum only. See docs/RELEASING.md."
 else
-  command -v minisign >/dev/null 2>&1 || {
+  if ! command -v minisign >/dev/null 2>&1; then
     log "installing minisign (to verify the release signature)"
-    apt-get update -y && apt-get install -y minisign \
-      || fail "could not install minisign to verify the release signature"
-  }
+    if ! { apt-get update -y && apt-get install -y minisign; }; then
+      fail "could not install minisign to verify the release signature"
+    fi
+  fi
   fetch "${BASE}/SHA256SUMS.minisig" -o "${TMP}/SHA256SUMS.minisig" \
     || fail "release signature (SHA256SUMS.minisig) missing — refusing to install an unsigned release"
   minisign -Vm "${TMP}/SHA256SUMS" -P "$MAINTAINER_PUBKEY" -x "${TMP}/SHA256SUMS.minisig" >/dev/null 2>&1 \
