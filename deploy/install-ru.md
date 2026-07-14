@@ -7,7 +7,10 @@ here.
 ## 1. Provision with the installer — from the VPS provider console
 
 > Run this from your VPS provider's web/serial **console**, NOT over SSH: the
-> installer closes port 22 as its final step, so an SSH session would be cut.
+> installer closes port 22 as its final step, so an SSH session would be cut. It
+> **asks you to confirm** console access first (when run on a terminal) and leaves
+> SSH **open** if you decline — so it can't lock you out by surprise. Pass `--yes`
+> to skip the prompt (e.g. in automation) and close SSH unattended.
 
     curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- ru
 
@@ -17,7 +20,8 @@ and a **local `geoip-ru.srs`** rule-set at `/etc/rdda/geoip-ru.srs`. It hardens 
 host (time sync, automatic security updates) and locks the firewall to **443/tcp
 only** (SSH closed). For ongoing maintenance, use the provider console — the node
 is designed to run hands-off (auto security updates + systemd restart-on-failure).
-(`--keep-ssh` leaves 22 open if you really need it during debugging.)
+(`--keep-ssh` leaves 22 open if you really need it during debugging; `--yes`
+closes it without the interactive confirmation.)
 
 See section 6 for what `rdda-nfqws` and the local geoip rule-set do.
 

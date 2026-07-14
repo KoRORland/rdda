@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # RDDA node installer. Usage:
-#   curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- <eu|ru> [--version vX.Y.Z] [--keep-ssh]
+#   curl -fsSL https://raw.githubusercontent.com/KoRORland/rdda/main/install.sh | sudo bash -s -- <eu|ru> [--version vX.Y.Z] [--keep-ssh] [--yes]
 set -euo pipefail
 
 REPO="KoRORland/rdda"
@@ -41,6 +41,7 @@ mark_version() { mkdir -p "$MARK_DIR"; printf '%s\n' "$2" > "${MARK_DIR}/$1.vers
 ROLE=""
 VERSION="latest"
 KEEP_SSH="no"
+ASSUME_YES="no"
 
 # --- parse args ---
 [ "$#" -ge 1 ] || fail "role required: eu or ru"
@@ -53,6 +54,7 @@ while [ "$#" -gt 0 ]; do
       [ -n "$VERSION" ] || fail "--version needs a non-empty value"
       ;;
     --keep-ssh) KEEP_SSH="yes"; shift;;
+    --yes|-y) ASSUME_YES="yes"; shift;;
     *) fail "unknown argument: $1";;
   esac
 done
@@ -263,9 +265,23 @@ ufw allow 443/tcp
 if [ "$ROLE" = "eu" ]; then
   ufw allow 22/tcp
 else
+  # F-7: closing SSH on the RU node is irreversible without VPS-console access.
+  # If not explicitly kept and not --yes, confirm interactively when a terminal
+  # is available; a declined (or, with no terminal, an impossible) confirmation
+  # leaves SSH OPEN rather than risking a lockout — the safe default.
+  if [ "$KEEP_SSH" != "yes" ] && [ "$ASSUME_YES" != "yes" ]; then
+    if [ -r /dev/tty ]; then
+      printf '\033[1;33m[rdda]\033[0m RU node: about to CLOSE SSH (22). Confirm you have working VPS-console access. Close SSH now? [y/N] ' > /dev/tty
+      read -r reply < /dev/tty || reply=""
+      case "$reply" in
+        y|Y|yes|YES) : ;;
+        *) KEEP_SSH="yes"; warn "RU node: SSH close not confirmed — leaving SSH (22) OPEN. Re-run with --yes once you've confirmed console access to close it.";;
+      esac
+    fi
+  fi
   if [ "$KEEP_SSH" = "yes" ]; then
     ufw allow 22/tcp
-    warn "RU node: --keep-ssh set, leaving SSH (22) OPEN"
+    warn "RU node: leaving SSH (22) OPEN"
   else
     warn "RU node: closing SSH (22). Use your VPS provider console from now on."
   fi
