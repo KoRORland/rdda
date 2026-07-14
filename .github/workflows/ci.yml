@@ -14,6 +14,32 @@ jobs:
         with: { go-version: "1.22" }
       - run: go vet ./...
       - run: go test ./...
+  pins:
+    # Re-derive the pinned sing-box SHA-256 from the upstream release and diff it
+    # against the hand-maintained pin in install.sh, so a wrong or stale hash
+    # cannot slip in unnoticed on a version bump. (F-6; nfqws2 already derives its
+    # hash from upstream at install time, so it needs no check here.)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: sing-box pin matches upstream
+        run: |
+          set -euo pipefail
+          ver="$(grep -oP 'SINGBOX_VERSION="\K[^"]+' install.sh | head -1)"
+          [ -n "$ver" ] || { echo "could not read SINGBOX_VERSION from install.sh"; exit 1; }
+          echo "pinned sing-box version: $ver"
+          for arch in amd64 arm64; do
+            pinned="$(grep -oP "${arch}\) SINGBOX_SHA256=\"\K[0-9a-f]+" install.sh)"
+            [ -n "$pinned" ] || { echo "no pinned SHA for $arch in install.sh"; exit 1; }
+            url="https://github.com/SagerNet/sing-box/releases/download/v${ver}/sing-box-${ver}-linux-${arch}.tar.gz"
+            curl -fsSL --retry 4 --retry-delay 3 --connect-timeout 20 "$url" -o sb.tgz
+            got="$(sha256sum sb.tgz | cut -d' ' -f1)"
+            if [ "$got" != "$pinned" ]; then
+              echo "::error::sing-box $arch pin mismatch — install.sh has $pinned, upstream is $got"
+              exit 1
+            fi
+            echo "$arch OK ($got)"
+          done
   shell:
     runs-on: ubuntu-24.04
     steps:
