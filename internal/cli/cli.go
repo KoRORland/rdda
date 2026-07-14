@@ -14,6 +14,7 @@ import (
 	"github.com/KoRORland/rdda/internal/keys"
 	"github.com/KoRORland/rdda/internal/pull"
 	"github.com/KoRORland/rdda/internal/qr"
+	"github.com/KoRORland/rdda/internal/shellword"
 	"github.com/KoRORland/rdda/internal/singboxconf"
 	"github.com/KoRORland/rdda/internal/state"
 	"github.com/KoRORland/rdda/internal/subscription"
@@ -490,8 +491,14 @@ func newPullCmd() *cobra.Command {
 			}
 			var reload func() error
 			if reloadCmd != "" {
+				parts, err := shellword.Split(reloadCmd)
+				if err != nil {
+					return fmt.Errorf("bad --reload-cmd: %w", err)
+				}
+				if len(parts) == 0 {
+					return fmt.Errorf("--reload-cmd is empty after parsing")
+				}
 				reload = func() error {
-					parts := strings.Fields(reloadCmd)
 					return exec.Command(parts[0], parts[1:]...).Run()
 				}
 			}
