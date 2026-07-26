@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +12,48 @@ import (
 	"github.com/KoRORland/rdda/internal/dest"
 	"github.com/KoRORland/rdda/internal/state"
 )
+
+// TestMain stubs the network discovery seam so init tests that don't pin an SNI
+// stay hermetic and deterministic (no live probing of external hosts).
+func TestMain(m *testing.M) {
+	discoverDestFn = func(context.Context, time.Duration) (string, error) { return "reality.test", nil }
+	os.Exit(m.Run())
+}
+
+func TestInitAutoDiscoversDestWhenUnpinned(t *testing.T) {
+	dir := t.TempDir()
+	out := run(t, "--dir", dir, "init", "--ru-host", "ru", "--eu-host", "eu")
+	if !strings.Contains(out, "auto-discovered REALITY dest: reality.test") {
+		t.Errorf("init did not surface auto-discovery: %s", out)
+	}
+	s, _ := state.Open(dir)
+	cfg, _ := s.LoadConfig()
+	if cfg.ClientReality.ServerName != "reality.test" || cfg.TunnelReality.ServerName != "reality.test" {
+		t.Errorf("unpinned init did not use the discovered dest: client=%q tunnel=%q",
+			cfg.ClientReality.ServerName, cfg.TunnelReality.ServerName)
+	}
+	// No shared hard-coded default is left behind.
+	if strings.Contains(cfg.ClientReality.ServerName, "addons.mozilla.org") {
+		t.Error("the old shared default dest is still present")
+	}
+}
+
+func TestInitPinnedSNISkipsDiscovery(t *testing.T) {
+	prev := discoverDestFn
+	discoverDestFn = func(context.Context, time.Duration) (string, error) {
+		return "", errors.New("discovery must not run when SNI is pinned")
+	}
+	defer func() { discoverDestFn = prev }()
+
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "ru", "--eu-host", "eu",
+		"--client-sni", "pinned.example", "--tunnel-sni", "pinned.example")
+	s, _ := state.Open(dir)
+	cfg, _ := s.LoadConfig()
+	if cfg.ClientReality.ServerName != "pinned.example" || cfg.ClientReality.Target != "pinned.example:443" {
+		t.Errorf("pinned client SNI not honored: %+v", cfg.ClientReality)
+	}
+}
 
 // fakeProber returns canned results keyed by host; unknown hosts fail.
 type fakeProber map[string]dest.Result

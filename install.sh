@@ -296,7 +296,7 @@ cat <<EOF
 EOF
 if [ "$ROLE" = "eu" ]; then
   cat <<'EOF'
-  1. rdda init --ru-host <RU_IP> --eu-host <EU_HOST>
+  1. rdda init --ru-host <RU_IP> --eu-host <EU_HOST>   # auto-discovers the REALITY dest
   2. rdda render eu > /etc/rdda/singbox.json
   3. chown -R rdda:rdda /etc/rdda
   4. systemctl enable --now rdda-singbox

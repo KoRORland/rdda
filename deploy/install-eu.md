@@ -23,6 +23,15 @@ security updates, and configures the firewall to allow 443 and 22.
 `init` generates the REALITY keys, tunnel UUID, and shortIds and writes
 `/etc/rdda/config.yaml` — this node is the source of truth.
 
+**REALITY dest (decoy SNI).** With no `--client-sni`/`--tunnel-sni`, `init`
+**auto-discovers** the dest: it probes a curated set of popular, CDN-fronted
+hosts from this node and picks the nearest one that validates (TLS 1.3 + HTTP/2
++ valid cert + real page), printing the choice. This avoids every deployment
+shipping the same decoy — a fleet-wide signature. Re-run discovery any time with
+`rdda dest discover --write` (do it **before** handing out client configs — the
+dest is baked into every client's subscription). To pin a specific host instead,
+pass `--client-sni <host>` (must be reachable + unblocked from the RU node).
+
 ## 3. Produce the RU node's config
 
     rdda render ru

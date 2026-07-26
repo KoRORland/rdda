@@ -8,7 +8,11 @@ REPO_ROOT="$(cd "$HERE/../../.." && pwd)"
 root=/var/lib/machines/rdda-eu
 
 log "EU real flow: init (CF-enabled) + render eu + a tester client"
+# Pin --client-sni so the harness is deterministic and does not exercise live
+# REALITY-dest auto-discovery (which ranks external hosts by RTT). www.apple.com
+# is the real site the client->RU handshake relays to over the bridge's egress.
 nsrun eu rdda init --ru-host ru --eu-host eu \
+  --client-sni www.apple.com --tunnel-sni www.apple.com \
   --cf-tunnel-host tunnel.rdda.test --cf-sub-host sub.rdda.test \
   --cf-tunnel-id testtunnel --cf-credentials-file /etc/cloudflared/test.json
 nsrun eu bash -eus <<'INEU'

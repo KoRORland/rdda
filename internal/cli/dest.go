@@ -12,6 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// discoverDestFn resolves the nearest validating REALITY dest by probing the
+// curated set from this node. It is a package var so tests (and any offline
+// path) can stub out the network.
+var discoverDestFn = func(ctx context.Context, timeout time.Duration) (string, error) {
+	best, ok := dest.Best(dest.Discover(ctx, dest.Candidates(), dest.DefaultProber{Timeout: timeout}))
+	if !ok {
+		return "", fmt.Errorf("no candidate validated as a REALITY dest from this node")
+	}
+	return best.Host, nil
+}
+
 // discoverOpts are the knobs for `rdda dest discover`.
 type discoverOpts struct {
 	which   string // "client", "tunnel", or "both"

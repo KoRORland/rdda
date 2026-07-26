@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -67,11 +68,41 @@ func newInitCmd(dir *string) *cobra.Command {
 	var ruHost, euHost, clientSNI, tunnelSNI string
 	var cfTunnelHost, cfSubHost, cfTunnelID, cfCredsFile string
 	var fp, geoipPath string
+	var discoverTimeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate keys and write config.yaml",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := state.Open(*dir)
+			if err != nil {
+				return err
+			}
+			// Resolve the REALITY dest per hop: a pinned --client-sni/--tunnel-sni
+			// wins; otherwise auto-discover the nearest validating host so no two
+			// deployments ship the same default dest (D-1). Discover at most once
+			// and reuse. Fail closed if discovery finds nothing — never silently
+			// fall back to a shared default.
+			var discovered string
+			resolveDest := func(pinned string) (string, error) {
+				if pinned != "" {
+					return pinned, nil
+				}
+				if discovered == "" {
+					d, derr := discoverDestFn(cmd.Context(), discoverTimeout)
+					if derr != nil {
+						return "", fmt.Errorf("auto-discover REALITY dest: %w\n"+
+							"  pin one with --client-sni/--tunnel-sni (a host reachable + unblocked from the node)", derr)
+					}
+					discovered = d
+					fmt.Fprintf(cmd.OutOrStdout(), "auto-discovered REALITY dest: %s\n", d)
+				}
+				return discovered, nil
+			}
+			clientSNI, err = resolveDest(clientSNI)
+			if err != nil {
+				return err
+			}
+			tunnelSNI, err = resolveDest(tunnelSNI)
 			if err != nil {
 				return err
 			}
@@ -127,8 +158,9 @@ func newInitCmd(dir *string) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&ruHost, "ru-host", "", "RU node public host/IP (required)")
 	cmd.Flags().StringVar(&euHost, "eu-host", "", "EU node public host/IP (required)")
-	cmd.Flags().StringVar(&clientSNI, "client-sni", "addons.mozilla.org", "REALITY SNI/dest for client→RU hop (must be reachable + unblocked FROM the RU node)")
-	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "addons.mozilla.org", "REALITY SNI/dest for the non-CF RU→EU fallback (dialed from the EU node)")
+	cmd.Flags().StringVar(&clientSNI, "client-sni", "", "REALITY SNI/dest for client→RU hop, reachable + unblocked FROM the RU node (empty: auto-discover the nearest validating host)")
+	cmd.Flags().StringVar(&tunnelSNI, "tunnel-sni", "", "REALITY SNI/dest for the non-CF RU→EU fallback, dialed from the EU node (empty: auto-discover)")
+	cmd.Flags().DurationVar(&discoverTimeout, "discover-timeout", 8*time.Second, "per-candidate timeout when auto-discovering a REALITY dest")
 	cmd.Flags().StringVar(&geoipPath, "geoip-path", "/etc/rdda/geoip-ru.srs", "RU local geoip-ru rule-set path for domestic split-routing (empty to disable)")
 	_ = cmd.MarkFlagRequired("ru-host")
 	_ = cmd.MarkFlagRequired("eu-host")
