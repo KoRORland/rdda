@@ -39,20 +39,24 @@ safety. Hence the name.
 - **Doesn't snitch on itself.** The in-Russia node exposes no management surface and looks
   like a normal web server to anyone poking at it.
 
-> 🟢 **Status: `v0.5.0` released** — a **security-hardening** release that closes
-> an adversarial third-party review of the whole codebase. Its keystone: an
-> **unimpeachable release trust chain** — every release is **minisign-signed** and
-> `rdda update` / `install.sh` verify that signature against an embedded maintainer
-> key before installing anything, so a substituted binary is rejected (root
-> auto-update is now opt-in / off by default). Plus: the RU control-channel token
-> moved out of the URL into an `Authorization` header, per-IP rate limiting on the
-> control endpoints, a published [`SECURITY.md`](SECURITY.md) threat model, an
-> enforced no-logs posture, verify-before-run installs, and off-node encrypted
-> backups. Built on the v0.4 **deployment-hardening** work (idempotent installs,
-> `rdda cf setup`, `rdda control-channel`, a content+routing+permissions `doctor`)
-> and the v0.3 **single sing-box** data plane (VLESS + REALITY + multiplex on the
-> inspected hop, VLESS + WebSocket over Cloudflare). Latest build:
-> [**releases/v0.5.0**](https://github.com/KoRORland/rdda/releases/tag/v0.5.0).
+> 🟢 **Status: `v0.6.0` released** — a **detectability-hardening** release that
+> closes a third-party traffic-analysis review: it breaks the *sameness across
+> deployments* that let a censor generalize one characterized node to the whole
+> fleet. Each node now **auto-discovers its own REALITY decoy** (probing a curated
+> popular/CDN set and picking the nearest that validates) instead of shipping one
+> shared default; the client **profile name is configurable and neutral**, not the
+> project name; the health beat carries an **end-to-end reachability sensor** (a
+> real fetch *through* the tunnel — so a blocked exit is visible even while units
+> read "active", and `doctor` re-validates the decoy); and the **multiplex params
+> and client rule order vary per node**, so the per-client uTLS diversity isn't
+> undone by a uniform structural fingerprint. The v0.5 `?token=` control-channel
+> bridge is dropped (header-only auth). Built on the v0.5 **security-hardening**
+> release — the **minisign-signed release trust chain** (`rdda update` /
+> `install.sh` verify the signature against an embedded key before installing;
+> root auto-update opt-in), header-auth control channel, per-IP rate limiting,
+> [`SECURITY.md`](SECURITY.md), enforced no-logs, and off-node encrypted backups —
+> and the v0.3/v0.4 **single sing-box** data plane + deployment hardening. Latest
+> build: [**releases/v0.6.0**](https://github.com/KoRORland/rdda/releases/tag/v0.6.0).
 > See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and
 > [`SECURITY.md`](SECURITY.md) for the threat model.
 
@@ -85,7 +89,7 @@ amd64/arm64 binaries). To pin a specific version instead of tracking latest, add
 > installer unverified from the network, fetch it from a release, check its signature
 > against that key, read it, then run it:
 > ```bash
-> V=v0.5.0   # the release you intend to install
+> V=v0.6.0   # the release you intend to install
 > base="https://github.com/KoRORland/rdda/releases/download/$V"
 > curl -fsSLO "$base/install.sh" && curl -fsSLO "$base/install.sh.minisig"
 > minisign -Vm install.sh -x install.sh.minisig \

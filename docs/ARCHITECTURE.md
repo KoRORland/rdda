@@ -8,8 +8,8 @@ This is the high-level design. It deliberately favors **fewer moving parts, well
 maintained components, and observability** over cleverness. See `basic design layout.txt`
 for the original requirements seed.
 
-> **Implementation status — [`v0.5.0`](https://github.com/KoRORland/rdda/releases/tag/v0.5.0)
-> (security hardening).** The DPI-facing core is shipped and integration-gated: 2-hop
+> **Implementation status — [`v0.6.0`](https://github.com/KoRORland/rdda/releases/tag/v0.6.0)
+> (detectability hardening).** The DPI-facing core is shipped and integration-gated: 2-hop
 > sing-box data plane, client onboarding, sub server, Cloudflare ingress, nfqws2 egress desync,
 > and config pull-sync. v0.3 added the operator tooling (`status`, `doctor`, encrypted
 > `backup`/`restore`, email `alert`, self-`update` + `heal`). **v0.4** — forged by the first
@@ -22,9 +22,18 @@ for the original requirements seed.
 > closes the trust chain: **minisign-signed releases** verified before install/update (root
 > auto-update now opt-in), control-channel token in an `Authorization` header, per-IP rate
 > limiting, a published [`SECURITY.md`](../SECURITY.md) threat model, an enforced no-logs
-> posture, and off-node encrypted backups. Not yet built (designed below, on the roadmap):
-> RU failover, key rotation, and the v0.6+ adaptive-adversary program (node pooling/rotation,
-> transport agility, CDN diversity). Sections marked *(planned)* call out the gaps inline.
+> posture, and off-node encrypted backups. **v0.6** — from a traffic-analysis review — breaks the
+> *sameness across deployments* that lets a censor generalize one node to the fleet: each node
+> **auto-discovers its own REALITY decoy** (`rdda dest discover` — nearest validating host from a
+> curated set) instead of a shared default; a **configurable, neutral client profile name** (not
+> the project name); an **end-to-end reachability sensor** in the health beat (a real fetch through
+> the tunnel, so a blocked exit is visible even while units read active) that `doctor` re-validates
+> and `alert` fires on; and **per-node multiplex + client-rule-order variance** so the per-client
+> uTLS diversity isn't undone by a uniform structural fingerprint (the `?token=` control-channel
+> bridge is also retired — header-only auth). Not yet built (designed below, on the roadmap): RU
+> failover, key rotation, and the v0.7+ adaptive-adversary program (automated block-response
+> consuming the reachability sensor, multi-transport pooling/switching, multi-RU/EU pools, CDN
+> diversity). Sections marked *(planned)* call out the gaps inline.
 
 ---
 
