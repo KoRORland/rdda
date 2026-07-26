@@ -51,6 +51,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(newCFCmd(&dir))
 	root.AddCommand(newRouteCmd())
 	root.AddCommand(newCheckDestCmd())
+	root.AddCommand(newDestCmd(&dir))
 	root.AddCommand(newHealthCmd())
 	root.AddCommand(newStatusCmd(&dir))
 	root.AddCommand(newBackupCmd(&dir))

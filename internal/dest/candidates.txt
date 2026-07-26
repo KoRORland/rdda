@@ -1,0 +1,34 @@
+# Curated candidate REALITY dests for auto-discovery (internal/dest).
+#
+# Each node probes these FROM ITSELF and auto-picks the nearest one that
+# validates (TLS 1.3 + X25519 + ALPN h2 + valid cert + direct 200). This file
+# is only a SEED — a listed host that has become blocked or dropped TLS 1.3/h2
+# is skipped per-node by the prober, so correctness never rests on this list
+# being perfect.
+#
+# Selection criteria for adding a host:
+#   - Popular / high inbound-TLS volume  -> this node's connections look normal
+#     (a low-traffic co-tenant would be a STRONGER tell, not a weaker one).
+#   - CDN-fronted / anycast              -> a nearby edge exists from most
+#     vantages, and TLS 1.3 + h2 are effectively guaranteed.
+#   - Plausibly unblocked inside Russia  -> the inspected client->RU hop must
+#     reach it (Microsoft/Apple/Samsung/Amazon/Google are unblocked in RU).
+#   - Serves a direct 200 on GET /       -> a real page, not a redirect/parking.
+#   - NOT the Cloudflare edge the RU->EU tunnel already fronts (avoid the two
+#     hops sharing a correlatable endpoint) -> this list is deliberately
+#     non-Cloudflare.
+#
+# Operators may add hosts that are popular and plausible for their own network
+# vantage; keep the criteria above.
+
+www.microsoft.com
+www.apple.com
+www.icloud.com
+www.samsung.com
+www.amazon.com
+www.bing.com
+www.nvidia.com
+www.ibm.com
+www.adobe.com
+www.mozilla.org
+www.paypal.com
