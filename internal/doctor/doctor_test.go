@@ -35,6 +35,7 @@ func fakeDoctor(dir string) *Doctor {
 	d := New(dir)
 	d.unitActive = func(string) bool { return true }
 	d.dialDest = func(string, int) error { return nil }
+	d.validDest = func(string, int) (bool, string) { return true, "" }
 	d.httpProbe = func(string, string) (int, []byte, time.Time, error) {
 		return 200, []byte(`{"outbounds":[]}`), time.Time{}, nil
 	}
@@ -87,6 +88,64 @@ func TestControlChannel_WrongOrigin200Fails(t *testing.T) {
 		}
 	}
 	t.Fatal("no control channel check produced")
+}
+
+// writeRUSingbox writes a minimal RU singbox.json with a REALITY inbound whose
+// handshake dest is destHost:443, so the RU "REALITY dest" check reaches the
+// probe path.
+func writeRUSingbox(t *testing.T, dir, destHost string) {
+	t.Helper()
+	cfg := `{"inbounds":[{"type":"vless","tls":{"enabled":true,"server_name":"` + destHost + `",
+		"reality":{"enabled":true,"handshake":{"server":"` + destHost + `","server_port":443}}}}]}`
+	if err := os.WriteFile(filepath.Join(dir, "singbox.json"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func destCheck(t *testing.T, cs []Check) Check {
+	t.Helper()
+	for _, c := range cs {
+		if c.Name == "REALITY dest" {
+			return c
+		}
+	}
+	t.Fatal("no REALITY dest check produced")
+	return Check{}
+}
+
+// A reachable dest that no longer validates as a genuine borrowed identity is a
+// weak, more-detectable camouflage — WARN (not FAIL: the tunnel still works),
+// pointing at discovery.
+func TestRealityDest_ReachableButWeakWarns(t *testing.T) {
+	dir := t.TempDir()
+	writeRUSingbox(t, dir, "some-host.example")
+	d := fakeDoctor(dir)
+	d.validDest = func(string, int) (bool, string) { return false, "no HTTP/2 (ALPN h2)" }
+	c := destCheck(t, d.Run("http://probe"))
+	if c.Status != WARN || !strings.Contains(c.Detail, "weak as a REALITY dest") {
+		t.Fatalf("expected WARN weak-dest, got status=%v detail=%q", c.Status, c.Detail)
+	}
+}
+
+// The pre-discovery shared default is a fleet-wide signature; flag it even when
+// it still validates.
+func TestRealityDest_LegacySharedDefaultWarns(t *testing.T) {
+	dir := t.TempDir()
+	writeRUSingbox(t, dir, "addons.mozilla.org")
+	d := fakeDoctor(dir) // validDest stubbed to ok
+	c := destCheck(t, d.Run("http://probe"))
+	if c.Status != WARN || !strings.Contains(c.Detail, "legacy shared default") {
+		t.Fatalf("expected WARN legacy-default, got status=%v detail=%q", c.Status, c.Detail)
+	}
+}
+
+func TestRealityDest_ValidatingPasses(t *testing.T) {
+	dir := t.TempDir()
+	writeRUSingbox(t, dir, "good-host.example")
+	c := destCheck(t, fakeDoctor(dir).Run("http://probe")) // dialDest+validDest stubbed ok
+	if c.Status != PASS || !strings.Contains(c.Detail, "validates") {
+		t.Fatalf("expected PASS validates, got status=%v detail=%q", c.Status, c.Detail)
+	}
 }
 
 func names(cs []Check) map[string]string {

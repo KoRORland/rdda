@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KoRORland/rdda/internal/dest"
 	"github.com/KoRORland/rdda/internal/keys"
 	"golang.org/x/net/proxy"
 )
@@ -36,6 +37,27 @@ func realDialDest(host string, port int) error {
 		return err
 	}
 	return conn.Close()
+}
+
+// realValidateDest re-validates a REALITY dest as a genuine borrowed identity
+// (TLS 1.3 + X25519 + ALPN h2 + a valid cert + a real page), reusing the
+// discovery prober — a reachable dest that no longer validates is a weak,
+// more-detectable camouflage even though the tunnel may still function. Only the
+// standard :443 dest is validated; a non-standard port reports ok (reachability
+// was already checked separately).
+func realValidateDest(host string, port int) (ok bool, reason string) {
+	if port != 443 {
+		return true, ""
+	}
+	r := dest.DefaultProber{}.Probe(context.Background(), host)
+	return r.OK, r.Reason
+}
+
+// legacyShared reports whether host is a known shared default dest from before
+// per-node discovery. Every deployment that took the default shipped it, so it
+// is a fleet-wide signature — worth flagging even when it still validates.
+func legacyShared(host string) bool {
+	return host == "addons.mozilla.org"
 }
 
 // realHTTPProbe GETs probeURL and returns the status code, the (capped) response

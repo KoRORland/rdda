@@ -40,6 +40,7 @@ type Doctor struct {
 	unitActive func(unit string) bool
 	httpProbe  func(probeURL, bearer string) (code int, body []byte, notAfter time.Time, err error)
 	dialDest   func(host string, port int) error
+	validDest  func(host string, port int) (ok bool, reason string)
 	egress     func(singboxConfig []byte, probeURL string) (ok bool, err error)
 	cfInfo     func(tunnelID string) (connectors int, err error)
 	svcUser    func() (uid, gid int, err error)
@@ -55,6 +56,7 @@ func New(dir string) *Doctor {
 		unitActive: func(u string) bool { return health.UnitActive(health.DefaultRunner, u) },
 		httpProbe:  realHTTPProbe,
 		dialDest:   realDialDest,
+		validDest:  realValidateDest,
 		egress:     realEgress,
 		cfInfo:     realCloudflaredInfo,
 		svcUser:    realServiceUser,
@@ -89,9 +91,13 @@ func (d *Doctor) runRU(probeURL string) []Check {
 		cs = append(cs, Check{"REALITY dest", WARN, "no REALITY inbound in singbox.json", ""})
 	default:
 		if err := d.dialDest(host, port); err != nil {
-			cs = append(cs, Check{"REALITY dest", FAIL, fmt.Sprintf("%s:%d unreachable: %v", host, port, err), "pick a --client-sni reachable from this RU node, then re-render"})
+			cs = append(cs, Check{"REALITY dest", FAIL, fmt.Sprintf("%s:%d unreachable: %v", host, port, err), "pick a --client-sni reachable from this RU node (or `rdda dest discover --write`), then re-render"})
+		} else if legacyShared(host) {
+			cs = append(cs, Check{"REALITY dest", WARN, fmt.Sprintf("%s is the legacy shared default — every deployment shipped it (a fleet-wide signature)", host), "run `rdda dest discover --write` on the EU node for a per-node dest, then re-render"})
+		} else if ok, reason := d.validDest(host, port); !ok {
+			cs = append(cs, Check{"REALITY dest", WARN, fmt.Sprintf("%s:%d reachable but weak as a REALITY dest: %s", host, port, reason), "run `rdda dest discover --write` on the EU node for a validating dest, then re-render"})
 		} else {
-			cs = append(cs, Check{"REALITY dest", PASS, fmt.Sprintf("%s:%d reachable (TLS 1.3)", host, port), ""})
+			cs = append(cs, Check{"REALITY dest", PASS, fmt.Sprintf("%s:%d validates (TLS 1.3 + h2 + valid cert)", host, port), ""})
 		}
 	}
 
