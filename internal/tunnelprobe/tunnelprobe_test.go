@@ -1,4 +1,4 @@
-package doctor
+package tunnelprobe
 
 import (
 	"encoding/json"

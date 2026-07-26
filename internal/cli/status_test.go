@@ -13,10 +13,25 @@ func TestRenderStatusEU_Healthy(t *testing.T) {
 	v := statusView{role: "EU",
 		units:   map[string]string{"rdda-singbox": "active", "rdda-sub": "active", "cloudflared": "active"},
 		clients: 3, haveBeat: true, beatAge: 90 * time.Second,
-		beat: state.RUHealth{Report: health.Report{SingboxActive: true, SingboxVersion: "1.13.14", RDDAVersion: "v0.3.0"}}}
+		beat: state.RUHealth{Report: health.Report{SingboxActive: true, SingboxVersion: "1.13.14", RDDAVersion: "v0.3.0",
+			Reach: health.Reach{Status: health.ReachOK, Detail: "42ms"}}}}
 	out := renderStatus(v)
 	if !strings.Contains(out, "EU (controller)") || !strings.Contains(out, "clients       3") || !strings.Contains(out, "last beat") {
 		t.Fatalf("EU healthy render:\n%s", out)
+	}
+	if !strings.Contains(out, "exit path") || !strings.Contains(out, "reachable through the tunnel (42ms)") {
+		t.Fatalf("EU healthy render missing reachability sensor:\n%s", out)
+	}
+}
+
+// The exit-path sensor surfaces a block even while units read active.
+func TestRenderStatusEU_ExitBlocked(t *testing.T) {
+	v := statusView{role: "EU", units: map[string]string{}, clients: 1, haveBeat: true, beatAge: 30 * time.Second,
+		beat: state.RUHealth{Report: health.Report{SingboxActive: true,
+			Reach: health.Reach{Status: health.ReachBlocked, Detail: "status 502"}}}}
+	out := renderStatus(v)
+	if !strings.Contains(out, "BLOCKED") || !strings.Contains(out, "status 502") {
+		t.Fatalf("blocked exit not surfaced:\n%s", out)
 	}
 }
 

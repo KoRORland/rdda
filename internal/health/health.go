@@ -16,7 +16,28 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/KoRORland/rdda/internal/tunnelprobe"
 )
+
+// Reachability status values carried in a beat (mirroring tunnelprobe).
+const (
+	ReachOK      = string(tunnelprobe.OK)      // reached the open internet through the tunnel
+	ReachBlocked = string(tunnelprobe.Blocked) // units up but the exit path is down/blocked
+	ReachUnknown = string(tunnelprobe.Unknown) // probe inconclusive (not evidence of a block)
+)
+
+// Reach is the end-to-end exit-path reachability carried in the beat: whether
+// the RU node actually reaches the open internet THROUGH its own tunnel, as
+// distinct from whether the local units are merely running (liveness ≠
+// reachability). It is a typed reading, not a bool, so a later automated
+// responder (transport shift / rotation) and pool health-weighting can consume
+// the same sensor without a rewrite.
+type Reach struct {
+	Status    string `json:"status"`               // ReachOK | ReachBlocked | ReachUnknown
+	LatencyMS int64  `json:"latency_ms,omitempty"` // round-trip to the successful fetch (OK)
+	Detail    string `json:"detail,omitempty"`     // failure reason (non-OK) or latency note
+}
 
 // Report is one RU health beat.
 type Report struct {
@@ -25,7 +46,23 @@ type Report struct {
 	NfqwsActive    bool      `json:"nfqws_active"`
 	SingboxVersion string    `json:"singbox_version"`
 	RDDAVersion    string    `json:"rdda_version"`
+	Reach          Reach     `json:"reach"`
 	Pad            string    `json:"pad"`
+}
+
+// Reachability runs the shared through-tunnel probe from the RU node and maps it
+// to the beat's typed Reach field. singboxJSON is the node's rendered config;
+// probeURL is fetched through the tunnel to prove the exit path works.
+func Reachability(singboxJSON []byte, probeURL string) Reach {
+	return reachFromResult(tunnelprobe.Probe(singboxJSON, probeURL))
+}
+
+func reachFromResult(r tunnelprobe.Result) Reach {
+	out := Reach{Status: string(r.Status), Detail: r.Detail}
+	if r.Latency > 0 {
+		out.LatencyMS = r.Latency.Milliseconds()
+	}
+	return out
 }
 
 // Runner runs a command and returns its trimmed combined output. Tests inject a fake.

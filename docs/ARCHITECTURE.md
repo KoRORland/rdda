@@ -101,7 +101,7 @@ the EU node, which is the internet exit.
 | `rdda-singbox.service` | sing-box: terminates client VLESS (REALITY + multiplex); originates the WebSocket tunnel to EU via Cloudflare; **owns routing** in its `route` block (RU-zone via a local geoip rule-set + intl-allowlist → direct, default → EU tunnel) |
 | `rdda-nfqws.service` | nfqws2 (zapret2): DPI-desync of the RU node's **outbound** 443 handshakes (→EU, →direct allowlist) via an nft egress hook — survives local RU-ISP DPI |
 | `rdda-pull.timer` | periodically pulls desired config (incl. new clients) from EU over Cloudflare |
-| `rdda-health.timer` | posts a periodic health beat (units, versions) to EU at a randomized interval; EU stamps `received_at` and judges staleness |
+| `rdda-health.timer` | posts a periodic health beat to EU at a randomized interval: unit liveness, versions, **and an end-to-end reachability reading** (a real fetch *through* the tunnel — reachability ≠ liveness) so a blocked exit path is visible even while units read active; EU stamps `received_at`, judges staleness, and alerts on a blocked exit |
 | `rdda-heal.timer` | restarts any RDDA unit stuck in systemd `failed` state (start-limit recovery); never touches a running unit |
 
 > **Implemented vs designed:** routing and the REALITY camouflage are **folded into sing-box**, not

@@ -35,6 +35,29 @@ func unitOrUnknown(s string) string {
 	return s
 }
 
+// reachLine renders the RU beat's end-to-end reachability sensor — whether the
+// exit path actually works, not just whether units are up.
+func reachLine(r health.Reach) string {
+	switch r.Status {
+	case health.ReachOK:
+		if r.Detail != "" {
+			return "✓ reachable through the tunnel (" + r.Detail + ")"
+		}
+		return "✓ reachable through the tunnel"
+	case health.ReachBlocked:
+		msg := "⚠ BLOCKED — units up but no reachability through the tunnel"
+		if r.Detail != "" {
+			msg += " (" + r.Detail + ")"
+		}
+		return msg
+	default: // ReachUnknown or an older beat with no sensor
+		if r.Detail != "" {
+			return "· reachability not determined (" + r.Detail + ")"
+		}
+		return "· reachability not reported"
+	}
+}
+
 func renderStatus(v statusView) string {
 	if v.role == "EU" {
 		s := "RDDA status — EU (controller)\n"
@@ -54,6 +77,7 @@ func renderStatus(v statusView) string {
 			}
 			s += fmt.Sprintf("  RU node       ✓ last beat %s ago — singbox %s (sb %s / rdda %s)\n",
 				v.beatAge.Round(time.Second), sb, v.beat.SingboxVersion, v.beat.RDDAVersion)
+			s += "  exit path     " + reachLine(v.beat.Reach) + "\n"
 		}
 		return s
 	}

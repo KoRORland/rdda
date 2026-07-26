@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KoRORland/rdda/internal/health"
 	"github.com/KoRORland/rdda/internal/state"
 )
 
@@ -29,6 +30,49 @@ func TestEvaluateHealthy(t *testing.T) {
 	e, _ := newTestEngine(t)
 	if cs := e.evaluate(); len(cs) != 0 {
 		t.Fatalf("healthy node has no conditions: %v", cs)
+	}
+}
+
+// A fresh beat whose exit-path sensor reports blocked fires ru-exit-blocked —
+// liveness up, reachability down.
+func TestEvaluateExitBlocked(t *testing.T) {
+	e, _ := newTestEngine(t)
+	e.lastReach = func() (health.Reach, bool) {
+		return health.Reach{Status: health.ReachBlocked, Detail: "status 502"}, true
+	}
+	var got *Condition
+	for _, c := range e.evaluate() {
+		if c.Key == "ru-exit-blocked" {
+			c := c
+			got = &c
+		}
+	}
+	if got == nil {
+		t.Fatal("expected ru-exit-blocked condition")
+	}
+	if !strings.Contains(got.Message, "502") {
+		t.Errorf("detail not surfaced: %q", got.Message)
+	}
+}
+
+func TestEvaluateExitOKNoAlert(t *testing.T) {
+	e, _ := newTestEngine(t)
+	e.lastReach = func() (health.Reach, bool) { return health.Reach{Status: health.ReachOK}, true }
+	if cs := e.evaluate(); len(cs) != 0 {
+		t.Fatalf("healthy exit must not alert: %v", cs)
+	}
+}
+
+// A stale beat fires ru-down, not ru-exit-blocked (a stale reading isn't a live
+// block signal).
+func TestEvaluateStaleBeatNoExitAlert(t *testing.T) {
+	e, _ := newTestEngine(t)
+	e.beatAge = func() (time.Duration, bool) { return 25 * time.Minute, true }
+	e.lastReach = func() (health.Reach, bool) { return health.Reach{Status: health.ReachBlocked}, true }
+	for _, c := range e.evaluate() {
+		if c.Key == "ru-exit-blocked" {
+			t.Fatal("stale beat must not fire ru-exit-blocked")
+		}
 	}
 }
 

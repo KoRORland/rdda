@@ -2,9 +2,14 @@ package health
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/KoRORland/rdda/internal/tunnelprobe"
 )
 
 func fakeRunner(states map[string]string) Runner {
@@ -26,6 +31,35 @@ func TestGather(t *testing.T) {
 	}
 	if r.SingboxVersion != "1.13.14" || r.RDDAVersion != "v0.3.0" || r.TS.IsZero() {
 		t.Fatalf("meta wrong: %+v", r)
+	}
+}
+
+func TestReachFromResult(t *testing.T) {
+	ok := reachFromResult(tunnelprobe.Result{Status: tunnelprobe.OK, Latency: 123 * time.Millisecond, Detail: "123ms"})
+	if ok.Status != ReachOK || ok.LatencyMS != 123 || ok.Detail != "123ms" {
+		t.Errorf("ok mapping wrong: %+v", ok)
+	}
+	// A block carries no latency but keeps the failure detail.
+	bl := reachFromResult(tunnelprobe.Result{Status: tunnelprobe.Blocked, Detail: "status 502"})
+	if bl.Status != ReachBlocked || bl.LatencyMS != 0 || bl.Detail != "status 502" {
+		t.Errorf("blocked mapping wrong: %+v", bl)
+	}
+	un := reachFromResult(tunnelprobe.Result{Status: tunnelprobe.Unknown, Detail: "no sing-box"})
+	if un.Status != ReachUnknown {
+		t.Errorf("unknown mapping wrong: %+v", un)
+	}
+}
+
+// The beat serializes the typed sensor so the EU node persists it.
+func TestReportCarriesReach(t *testing.T) {
+	r := Gather(fakeRunner(map[string]string{"rdda-singbox": "active"}), "v0")
+	r.Reach = Reach{Status: ReachBlocked, Detail: "no response"}
+	b, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"reach":{"status":"blocked"`) {
+		t.Fatalf("reach not serialized into the beat: %s", b)
 	}
 }
 

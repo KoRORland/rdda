@@ -31,6 +31,7 @@ type Engine struct {
 	dir          string
 	cfg          state.Config
 	beatAge      func() (age time.Duration, haveBeat bool)
+	lastReach    func() (health.Reach, bool)
 	unitActive   func(unit string) bool
 	certNotAfter func() (time.Time, error)
 	now          func() time.Time
@@ -57,6 +58,17 @@ func New(dir string, cfg state.Config) *Engine {
 		}
 		return e.now().Sub(h.ReceivedAt), true
 	}
+	e.lastReach = func() (health.Reach, bool) {
+		s, err := state.Open(dir)
+		if err != nil {
+			return health.Reach{}, false
+		}
+		h, ok, err := s.LoadRUHealth()
+		if err != nil || !ok {
+			return health.Reach{}, false
+		}
+		return h.Reach, true
+	}
 	e.unitActive = func(u string) bool { return health.UnitActive(health.DefaultRunner, u) }
 	e.certNotAfter = func() (time.Time, error) { return certExpiry(cfg) }
 	e.send = func(subject, body string) error { return sendEmail(cfg.Alert.Command, cfg.Alert.Email, subject, body) }
@@ -65,10 +77,24 @@ func New(dir string, cfg state.Config) *Engine {
 
 func (e *Engine) evaluate() []Condition {
 	var cs []Condition
-	if age, ok := e.beatAge(); !ok {
+	switch age, ok := e.beatAge(); {
+	case !ok:
 		cs = append(cs, Condition{"ru-down", "RU node down — no health beat received yet"})
-	} else if age > staleAfter {
+	case age > staleAfter:
 		cs = append(cs, Condition{"ru-down", fmt.Sprintf("RU node down — no health beat in %s", age.Round(time.Second))})
+	default:
+		// The beat is fresh — is the exit path actually working (reachability),
+		// not just the units alive (liveness)? A blocked exit is an availability
+		// failure the operator must know about.
+		if e.lastReach != nil {
+			if r, ok := e.lastReach(); ok && r.Status == health.ReachBlocked {
+				msg := "RU exit path blocked — units up but no reachability through the tunnel"
+				if r.Detail != "" {
+					msg += " (" + r.Detail + ")"
+				}
+				cs = append(cs, Condition{"ru-exit-blocked", msg})
+			}
+		}
 	}
 	for _, u := range []string{"rdda-singbox", "rdda-sub", "cloudflared"} {
 		if !e.unitActive(u) {
