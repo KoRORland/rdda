@@ -67,7 +67,7 @@ func newRoot() *cobra.Command {
 func newInitCmd(dir *string) *cobra.Command {
 	var ruHost, euHost, clientSNI, tunnelSNI string
 	var cfTunnelHost, cfSubHost, cfTunnelID, cfCredsFile string
-	var fp, geoipPath string
+	var fp, geoipPath, profileTitle string
 	var discoverTimeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -128,7 +128,8 @@ func newInitCmd(dir *string) *cobra.Command {
 			}
 			cfg := state.Config{
 				RUHost: ruHost, RUPort: 443, EUHost: euHost, EUPort: 443,
-				Fingerprint: fp,
+				Fingerprint:  fp,
+				ProfileTitle: profileTitle,
 				ClientPath:  "/cl", TunnelPath: "/tn",
 				TunnelUUID: keys.NewUUID(),
 				SubBaseURL: "https://" + euHost,
@@ -169,6 +170,7 @@ func newInitCmd(dir *string) *cobra.Command {
 	cmd.Flags().StringVar(&cfTunnelID, "cf-tunnel-id", "", "Cloudflare Tunnel ID")
 	cmd.Flags().StringVar(&cfCredsFile, "cf-credentials-file", "", "path to the cloudflared tunnel credentials JSON")
 	cmd.Flags().StringVar(&fp, "fingerprint", "firefox", "uTLS fingerprint to mimic (non-Chrome recommended)")
+	cmd.Flags().StringVar(&profileTitle, "profile-title", "", "name Hiddify shows for the client profile (empty: a neutral generic default; avoid anything that identifies the tool)")
 	return cmd
 }
 

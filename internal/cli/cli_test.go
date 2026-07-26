@@ -168,6 +168,20 @@ func TestInitSetsFingerprint(t *testing.T) {
 	}
 }
 
+func TestInitSetsProfileTitle(t *testing.T) {
+	dir := t.TempDir()
+	run(t, "--dir", dir, "init", "--ru-host", "r", "--eu-host", "e", "--profile-title", "Home Router")
+	s, _ := state.Open(dir)
+	cfg, _ := s.LoadConfig()
+	if cfg.ProfileTitle != "Home Router" {
+		t.Fatalf("profile title = %q, want Home Router", cfg.ProfileTitle)
+	}
+	// Unset ⇒ neutral generic default, never the project name.
+	if got := (state.Config{}).ProfileTitleOr(); got == "" || strings.Contains(got, "RDDA") {
+		t.Fatalf("neutral default = %q, must be non-empty and not the project name", got)
+	}
+}
+
 func TestRenderNfqws(t *testing.T) {
 	dir := t.TempDir()
 	run(t, "--dir", dir, "init", "--ru-host", "ru", "--eu-host", "eu")

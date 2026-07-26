@@ -71,8 +71,22 @@ type Config struct {
 	Cloudflare    Cloudflare `yaml:"cloudflare"`
 	PullToken     string     `yaml:"pull_token"`
 	Fingerprint   string     `yaml:"fingerprint"`
-	Desync        Desync     `yaml:"desync"`
-	Alert         Alert      `yaml:"alert"`
+	// ProfileTitle is the name Hiddify shows for the client profile. It is a
+	// greppable artifact on every user's device and in every QR/screenshot, so
+	// it must NOT be the project name (that would tie an inspected device to this
+	// specific tool). Empty ⇒ a neutral generic default (see ProfileTitleOr).
+	ProfileTitle string `yaml:"profile_title"`
+	Desync       Desync `yaml:"desync"`
+	Alert        Alert  `yaml:"alert"`
+}
+
+// ProfileTitleOr returns the operator-configured client profile name, or a
+// neutral generic default when unset — deliberately not the project name.
+func (c Config) ProfileTitleOr() string {
+	if c.ProfileTitle == "" {
+		return "VPN"
+	}
+	return c.ProfileTitle
 }
 
 // Store is a directory-backed RDDA state store.

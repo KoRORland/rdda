@@ -49,6 +49,12 @@ channel (Signal, Telegram, in person); they import it into Hiddify (sing-box cor
 and connect. Delivery is out-of-band on purpose (nothing client-facing is exposed
 on the EU node).
 
+**Profile name.** Hiddify labels the imported profile with a title carried in the
+config (an HTTP header and an in-file comment). It defaults to a neutral generic
+name — never the project name, since it is a greppable artifact on every user's
+device and in every screenshot. Set your own with `rdda init --profile-title
+"<name>"` (choose something unremarkable for your users, e.g. `Home Router`).
+
 > **Mux:** the sing-box JSON config already carries the multiplex settings, so
 > no manual Mux toggling is needed in the client (unlike a bare `vless://` link).
 

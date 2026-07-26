@@ -114,9 +114,13 @@ func TestQRPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Names the profile (so it's not UNKNOWN) and carries the full config.
-	if !strings.HasPrefix(payload, "// profile-title: RDDA") {
+	// Names the profile with the neutral default (not the project name) and
+	// carries the full config.
+	if !strings.HasPrefix(payload, "// profile-title: VPN") {
 		t.Errorf("payload must start with the naming header, got: %.40q", payload)
+	}
+	if strings.Contains(payload, "RDDA") {
+		t.Errorf("payload must not carry the project name in the profile title:\n%.60q", payload)
 	}
 	// OPSEC: the payload references only the RU entry node, never the EU exit.
 	if strings.Contains(payload, "eu-exit.secret.example") {
@@ -145,9 +149,30 @@ func TestQRPayload(t *testing.T) {
 }
 
 func TestProfileTitleHeaderIsBase64(t *testing.T) {
-	// base64("RDDA") == "UkREQQ==" — the exact value a client will match on.
-	if got := ProfileTitleHeader(); got != "base64:UkREQQ==" {
-		t.Errorf("ProfileTitleHeader = %q, want base64:UkREQQ==", got)
+	// base64("VPN") == "VlBO" — the neutral default a client matches on.
+	if got := ProfileTitleHeader("VPN"); got != "base64:VlBO" {
+		t.Errorf("ProfileTitleHeader = %q, want base64:VlBO", got)
+	}
+}
+
+// A configured title flows through to both the header and the in-file comment,
+// and the neutral default is used when unset — never the project name.
+func TestProfileTitleConfigurable(t *testing.T) {
+	c := cfg()
+	c.ProfileTitle = "Home Router"
+	payload, err := QRPayload(c, state.Client{UUID: "u", Name: "n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(payload, "// profile-title: Home Router") {
+		t.Errorf("configured title not used in the import header: %.40q", payload)
+	}
+
+	if got := cfg().ProfileTitleOr(); got != "VPN" {
+		t.Errorf("neutral default = %q, want VPN", got)
+	}
+	if got := (state.Config{ProfileTitle: "X"}).ProfileTitleOr(); got != "X" {
+		t.Errorf("configured title not returned: %q", got)
 	}
 }
 

@@ -10,12 +10,6 @@ import (
 
 type obj = map[string]any
 
-// ProfileTitle is the name Hiddify shows for an RDDA profile. It replaces the
-// "UNKNOWN" that Hiddify falls back to when a subscription carries no name: it is
-// surfaced via the Profile-Title HTTP header (URL path) and the in-file
-// ImportHeader comment (QR/file path).
-const ProfileTitle = "RDDA"
-
 // ClientOutbound returns one sing-box VLESS/REALITY/multiplex outbound object
 // pointing at the RU entry node. The tag "rdda" is referenced by Build's route
 // (route.final and the DNS detour), so it must stay in sync with those.
@@ -74,7 +68,7 @@ func QRPayload(cfg state.Config, c state.Client) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return ImportHeader() + string(b), nil
+	return ImportHeader(cfg.ProfileTitleOr()) + string(b), nil
 }
 
 // buildDoc assembles the hardened sing-box config document shared by Build (human-
@@ -121,16 +115,17 @@ func buildDoc(cfg state.Config, c state.Client) (obj, error) {
 }
 
 // ImportHeader returns the //-prefixed comment header Hiddify reads from the first
-// lines of a config file (and strips before JSON-parsing). It names the profile and
-// sets an update interval for users who import the config by file/clipboard rather
-// than by subscription URL (where the Profile-Title HTTP header does the same job).
-func ImportHeader() string {
-	return "// profile-title: " + ProfileTitle + "\n" +
+// lines of a config file (and strips before JSON-parsing). It names the profile with
+// the operator-configured title and sets an update interval for users who import the
+// config by file/clipboard rather than by subscription URL (where the Profile-Title
+// HTTP header does the same job).
+func ImportHeader(title string) string {
+	return "// profile-title: " + title + "\n" +
 		"// profile-update-interval: 24\n"
 }
 
 // ProfileTitleHeader returns the value for the Hiddify "Profile-Title" HTTP
 // response header, base64-encoded so non-ASCII titles survive.
-func ProfileTitleHeader() string {
-	return "base64:" + base64.StdEncoding.EncodeToString([]byte(ProfileTitle))
+func ProfileTitleHeader(title string) string {
+	return "base64:" + base64.StdEncoding.EncodeToString([]byte(title))
 }
