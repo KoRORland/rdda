@@ -50,24 +50,20 @@ func TestRUConfig_ValidTokenReturnsRenderedConfig(t *testing.T) {
 	}
 }
 
-func TestRUConfig_QueryTokenBridgeStillWorks(t *testing.T) {
-	s := newStoreWithConfig(t, state.Config{
-		RUHost: "ru.example", RUPort: 443, EUPort: 8443,
-		TunnelUUID: "uuid-1", TunnelPath: "/tpath", ClientPath: "/cpath",
-		ClientReality: state.Reality{Target: "www.microsoft.com:443", ServerName: "www.microsoft.com", PrivateKey: "k", ShortIDs: []string{"aa"}},
-		Cloudflare:    state.Cloudflare{TunnelHostname: "tunnel.example.com"},
-		PullToken:     "secret-tok",
-	})
+// The v0.5 one-release ?token= query bridge is gone (v0.6): a query-only token
+// no longer authenticates — auth is header-only, so the token can't leak into
+// logs/Referer/history.
+func TestRUConfig_QueryTokenRejected(t *testing.T) {
+	s := newStoreWithConfig(t, state.Config{RUHost: "ru.example", PullToken: "secret-tok"})
 	srv := httptest.NewServer(Handler(s))
 	defer srv.Close()
-	// An RU node not yet on the header-auth release authenticates via ?token=.
 	resp, err := http.Get(srv.URL + "/ru/config?token=secret-tok")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("query bridge status = %d, want 200", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("query-only token status = %d, want 401 (bridge dropped)", resp.StatusCode)
 	}
 }
 

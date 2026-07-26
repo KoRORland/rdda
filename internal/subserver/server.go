@@ -54,17 +54,16 @@ func limited(l *ratelimit.Limiter, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// controlToken extracts the RU control-channel token, preferring an
-// `Authorization: Bearer <token>` header and falling back to the legacy
-// `?token=` query string. Query strings leak into access logs / Referer /
-// history, so the header is the intended transport (F-2); the query fallback is
-// a one-release bridge so an RU node that has not yet updated keeps
-// authenticating. TODO(next release): drop the query fallback.
+// controlToken extracts the RU control-channel token from the
+// `Authorization: Bearer <token>` header. The token is header-only: query
+// strings leak into access logs / Referer / history (F-2). (v0.5 also accepted
+// a legacy `?token=` query as a one-release migration bridge; v0.6 drops it, so
+// every RU node must run ≥ v0.5, which already sends the header.)
 func controlToken(r *http.Request) string {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
-	return r.URL.Query().Get("token")
+	return ""
 }
 
 // Handler serves GET /sub/<token>.

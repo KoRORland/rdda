@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,7 +104,7 @@ func (d *Doctor) runRU(probeURL string) []Check {
 	if from == "" {
 		cs = append(cs, Check{"control channel", WARN, "pull not configured (/etc/rdda/pull.env)", ""})
 	} else {
-		code, body, _, err := d.httpProbe(withToken(from, token), token)
+		code, body, _, err := d.httpProbe(from, token)
 		switch {
 		case err != nil:
 			cs = append(cs, Check{"control channel", FAIL, fmt.Sprintf("%s: %v", from, err), "check Cloudflare/cloudflared and the EU sub server"})
@@ -190,7 +189,7 @@ func (d *Doctor) runEU() []Check {
 		cs = append(cs, Check{"sub endpoint", WARN, "Cloudflare sub endpoint not configured", ""})
 	} else {
 		u := "https://" + cfg.Cloudflare.SubHostname + "/ru/config"
-		code, body, notAfter, err := d.httpProbe(withToken(u, cfg.PullToken), cfg.PullToken)
+		code, body, notAfter, err := d.httpProbe(u, cfg.PullToken)
 		switch {
 		case err != nil:
 			cs = append(cs, Check{"sub endpoint", FAIL, fmt.Sprintf("%s: %v", u, err), "check the Cloudflare tunnel + rdda-sub"})
@@ -229,21 +228,6 @@ func (d *Doctor) runEU() []Check {
 }
 
 // --- helpers ---
-
-// withToken appends the legacy ?token= query — the one-release bridge for a sub
-// server not yet reading the Authorization header. The probe also sends the
-// header (see realHTTPProbe); this keeps doctor green against an un-updated EU
-// node. TODO(next release): drop this and probe with the header only.
-func withToken(rawURL, token string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return rawURL
-	}
-	q := u.Query()
-	q.Set("token", token)
-	u.RawQuery = q.Encode()
-	return u.String()
-}
 
 // isConfigJSON reports whether body is a JSON object — the shape /ru/config
 // serves. It's the guard against a hostname that answers 200 from the wrong

@@ -220,7 +220,7 @@ existing subdomain), `route dns` fails/no-ops and the name keeps serving its old
 origin — delete the existing record in the Cloudflare dashboard, then re-run.
 Confirm each host actually reaches the sub server (JSON, not a stale page):
 
-    curl -s "https://<sub-hostname>.example.com/ru/config?token=<PULL_TOKEN>" | head -c 40   # expect: {"…
+    curl -s -H "Authorization: Bearer <PULL_TOKEN>" "https://<sub-hostname>.example.com/ru/config" | head -c 40   # expect: {"…
 
 ### 6.6 Create the cloudflared system user and enable the service
 

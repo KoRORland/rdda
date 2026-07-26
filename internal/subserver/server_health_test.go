@@ -31,11 +31,12 @@ func TestRUHealthEndpoint(t *testing.T) {
 		t.Fatalf("beat not stored: %+v ok=%v", got, ok)
 	}
 
-	// valid POST via legacy ?token= query (the one-release bridge still works)
+	// The legacy ?token= query bridge is dropped (v0.6): a query-only token no
+	// longer authenticates — header-only.
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/ru/health?token=secret-tok", strings.NewReader(body)))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("valid beat via query bridge: got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("query-only token: got %d, want 401 (bridge dropped)", rec.Code)
 	}
 
 	// bad token

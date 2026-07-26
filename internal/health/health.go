@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -108,22 +107,14 @@ func Gather(run Runner, rddaVersion string) Report {
 }
 
 // Send POSTs the report to the EU /ru/health URL, authenticating with an
-// Authorization: Bearer header. It also sets the legacy ?token= query as a
-// one-release bridge for an EU node not yet reading the header (F-2).
-// TODO(next release): drop the query param.
+// Authorization: Bearer header (the token never rides the URL — query strings
+// leak into logs/Referer/history).
 func Send(client *http.Client, endpoint, token string, r Report) error {
 	body, err := json.Marshal(r)
 	if err != nil {
 		return err
 	}
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return err
-	}
-	q := u.Query()
-	q.Set("token", token)
-	u.RawQuery = q.Encode()
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

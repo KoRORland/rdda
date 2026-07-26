@@ -88,13 +88,13 @@ func TestSend(t *testing.T) {
 	if gotMethod != http.MethodPost {
 		t.Fatalf("method=%s", gotMethod)
 	}
-	// The token must travel in the Authorization header (F-2). The query is kept
-	// as a one-release bridge, so it is still present for now.
+	// The token travels in the Authorization header ONLY (F-2) — never the URL,
+	// where it would leak into logs/Referer/history.
 	if gotHeader != "Bearer tok-123" {
 		t.Fatalf("Authorization header = %q, want %q", gotHeader, "Bearer tok-123")
 	}
-	if gotQuery != "tok-123" {
-		t.Fatalf("bridge query token = %q, want tok-123", gotQuery)
+	if gotQuery != "" {
+		t.Fatalf("token must not ride the URL, got ?token=%q", gotQuery)
 	}
 }
 

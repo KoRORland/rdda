@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -229,15 +228,15 @@ func certExpiry(cfg state.Config) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("no sub hostname configured")
 	}
 	u := "https://" + cfg.Cloudflare.SubHostname + "/ru/config"
-	if cfg.PullToken != "" {
-		if uu, err := url.Parse(u); err == nil {
-			q := uu.Query()
-			q.Set("token", cfg.PullToken)
-			uu.RawQuery = q.Encode()
-			u = uu.String()
-		}
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return time.Time{}, err
 	}
-	resp, err := (&http.Client{Timeout: 12 * time.Second}).Get(u)
+	// Authenticate on the Authorization header (F-2), never the URL.
+	if cfg.PullToken != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.PullToken)
+	}
+	resp, err := (&http.Client{Timeout: 12 * time.Second}).Do(req)
 	if err != nil {
 		return time.Time{}, err
 	}

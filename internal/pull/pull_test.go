@@ -36,12 +36,12 @@ func TestRun_WritesAtomicallyAndReloads(t *testing.T) {
 	if !reloaded {
 		t.Fatal("Reload was not called")
 	}
-	// The token must ride the Authorization header; the query is the bridge.
+	// The token rides the Authorization header ONLY — never the URL.
 	if gotHeader != "Bearer tok" {
 		t.Fatalf("Authorization = %q, want %q", gotHeader, "Bearer tok")
 	}
-	if gotQuery != "tok" {
-		t.Fatalf("bridge query token = %q, want tok", gotQuery)
+	if gotQuery != "" {
+		t.Fatalf("token must not ride the URL, got ?token=%q", gotQuery)
 	}
 }
 

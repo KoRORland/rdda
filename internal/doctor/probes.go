@@ -68,7 +68,7 @@ func realHTTPProbe(probeURL, bearer string) (int, []byte, time.Time, error) {
 		return 0, nil, time.Time{}, err
 	}
 	// Authenticate with the Authorization: Bearer header (F-2), matching the RU
-	// pull/health clients. The URL may also carry ?token= as the migration bridge.
+	// pull/health clients — the token never rides the URL.
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}

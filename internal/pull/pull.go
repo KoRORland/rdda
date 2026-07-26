@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,17 +28,9 @@ func Run(opts Options) error {
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
-	u, err := url.Parse(opts.URL)
-	if err != nil {
-		return fmt.Errorf("bad pull URL: %w", err)
-	}
-	// Authenticate with an Authorization: Bearer header. The legacy ?token= query
-	// is kept as a one-release bridge for an EU node not yet reading the header
-	// (F-2). TODO(next release): drop the query param.
-	q := u.Query()
-	q.Set("token", opts.Token)
-	u.RawQuery = q.Encode()
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	// Authenticate with an Authorization: Bearer header — the token never rides
+	// the URL (query strings leak into logs/Referer/history).
+	req, err := http.NewRequest(http.MethodGet, opts.URL, nil)
 	if err != nil {
 		return fmt.Errorf("build pull request: %w", err)
 	}
