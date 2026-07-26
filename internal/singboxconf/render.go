@@ -49,7 +49,7 @@ func RenderClient(cfg state.Config, clientUUID string, socksPort int) ([]byte, e
 				"short_id":   firstOrEmpty(cfg.ClientReality.ShortIDs),
 			},
 		},
-		"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},
+		"multiplex": obj{"enabled": true, "protocol": cfg.MuxProtocol(), "max_streams": cfg.MuxStreams()},
 	}
 	doc := obj{
 		"log":       obj{"level": "warn"},
@@ -98,7 +98,7 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 				"utls":        obj{"enabled": true, "fingerprint": cfg.FP()},
 			},
 			"transport": obj{"type": "ws", "path": cfg.TunnelPath, "headers": obj{"Host": cfg.Cloudflare.TunnelHostname}},
-			"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},
+			"multiplex": obj{"enabled": true, "protocol": cfg.MuxProtocol(), "max_streams": cfg.MuxStreams()},
 		}
 	} else {
 		proxy = obj{
@@ -115,7 +115,7 @@ func RenderRU(cfg state.Config, clients []state.Client) ([]byte, error) {
 					"short_id":   firstOrEmpty(cfg.TunnelReality.ShortIDs),
 				},
 			},
-			"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},
+			"multiplex": obj{"enabled": true, "protocol": cfg.MuxProtocol(), "max_streams": cfg.MuxStreams()},
 		}
 	}
 

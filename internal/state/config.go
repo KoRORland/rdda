@@ -4,6 +4,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 
@@ -153,4 +154,71 @@ func (c Config) FP() string {
 		return "firefox"
 	}
 	return c.Fingerprint
+}
+
+// --- Per-node structural variance (D-4) ---
+//
+// The per-client uTLS pool already diversifies the ClientHello, but the
+// multiplex parameters and client routing-rule order were identical on every
+// deployment — in combination a structural fingerprint that survives the TLS
+// randomization, so characterizing one node generalizes to the whole class.
+// These derive those otherwise-constant structural values per deployment from
+// the tunnel UUID (unique per init, present in every config, stable across
+// re-renders). The point is spreading deployments across buckets, not
+// uniqueness; a small parameter space is fine. Every value stays end-to-end
+// valid: inbounds accept any multiplex protocol, and the reordered rules are
+// equivalent, so nothing needs the two ends to agree on the specific choice.
+
+// structSeed is a stable per-deployment seed. A zero UUID (unconfigured/test)
+// yields 0, which the accessors map to the historical defaults.
+func (c Config) structSeed() uint64 {
+	if c.TunnelUUID == "" {
+		return 0
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(c.TunnelUUID))
+	return h.Sum64()
+}
+
+// muxProtocols are the sing-box multiplex protocols; all three negotiate
+// end-to-end (the inbound side just enables multiplex and accepts any).
+var muxProtocols = []string{"h2mux", "smux", "yamux"}
+
+// MuxProtocol returns this deployment's multiplex protocol (default h2mux).
+func (c Config) MuxProtocol() string {
+	s := c.structSeed()
+	if s == 0 {
+		return "h2mux"
+	}
+	return muxProtocols[s%uint64(len(muxProtocols))]
+}
+
+// MuxStreams returns this deployment's multiplex max_streams, in 4..16 — a
+// range sing-box negotiates cleanly (default 8).
+func (c Config) MuxStreams() int {
+	s := c.structSeed()
+	if s == 0 {
+		return 8
+	}
+	return 4 + int((s>>8)%13) // 4..16
+}
+
+// RuleOrder returns a stable per-deployment permutation of 0..n-1, used to vary
+// the order of equivalent client routing rules. A zero seed returns identity.
+func (c Config) RuleOrder(n int) []int {
+	order := make([]int, n)
+	for i := range order {
+		order[i] = i
+	}
+	s := c.structSeed()
+	if s == 0 {
+		return order
+	}
+	// Fisher–Yates driven by an LCG stepped from the seed.
+	for i := n - 1; i > 0; i-- {
+		s = s*6364136223846793005 + 1442695040888963407
+		j := int((s >> 33) % uint64(i+1))
+		order[i], order[j] = order[j], order[i]
+	}
+	return order
 }

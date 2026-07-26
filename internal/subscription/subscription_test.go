@@ -106,6 +106,51 @@ func TestBuildIsHardened(t *testing.T) {
 	}
 }
 
+// Per-node structural variance (D-4) must not weaken the hardened posture: the
+// reordered rules keep ip_is_private first, all three block rules present, and
+// the tunnel as final; the outbound multiplex reflects the deployment's config.
+func TestBuildStructuralVariancePreservesHardening(t *testing.T) {
+	c := cfg()
+	c.TunnelUUID = "abcd1234-0000-0000-0000-00000000abcd" // drives the per-node choice
+	s, err := Build(c, state.Client{UUID: "u", Name: "granny"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(s), &doc); err != nil {
+		t.Fatal(err)
+	}
+	route := doc["route"].(map[string]any)
+	rules := route["rules"].([]any)
+	if r0 := rules[0].(map[string]any); r0["ip_is_private"] != true || r0["outbound"] != "direct" {
+		t.Fatalf("first rule must stay ip_is_private→direct, got %v", r0)
+	}
+	// All three block rules survive the reordering, all targeting block.
+	var quic, udp443, bt bool
+	for _, r := range rules[1:] {
+		m := r.(map[string]any)
+		if m["outbound"] != "block" {
+			t.Errorf("reordered rule not →block: %v", m)
+		}
+		switch {
+		case m["protocol"] == "quic":
+			quic = true
+		case m["protocol"] == "bittorrent":
+			bt = true
+		case m["network"] == "udp" && m["port"] == float64(443):
+			udp443 = true
+		}
+	}
+	if !quic || !udp443 || !bt {
+		t.Errorf("a block rule was lost in reordering: quic=%v udp443=%v bt=%v", quic, udp443, bt)
+	}
+
+	out := doc["outbounds"].([]any)[0].(map[string]any)
+	if got := out["multiplex"].(map[string]any)["protocol"]; got != c.MuxProtocol() {
+		t.Errorf("outbound mux protocol = %v, want per-node %q", got, c.MuxProtocol())
+	}
+}
+
 func TestQRPayload(t *testing.T) {
 	c := cfg()
 	c.EUHost = "eu-exit.secret.example" // must never appear in a client-facing QR

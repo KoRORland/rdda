@@ -28,7 +28,7 @@ func ClientOutbound(cfg state.Config, c state.Client) ([]byte, error) {
 			"utls":        obj{"enabled": true, "fingerprint": c.FingerprintOr(cfg.FP())},
 			"reality":     obj{"enabled": true, "public_key": cfg.ClientReality.PublicKey, "short_id": sid},
 		},
-		"multiplex": obj{"enabled": true, "protocol": "h2mux", "max_streams": 8},
+		"multiplex": obj{"enabled": true, "protocol": cfg.MuxProtocol(), "max_streams": cfg.MuxStreams()},
 	}
 	return json.MarshalIndent(out, "", "  ")
 }
@@ -99,12 +99,11 @@ func buildDoc(cfg state.Config, c state.Client) (obj, error) {
 			{"type": "block", "tag": "block"},
 		},
 		"route": obj{
-			"rules": []obj{
-				{"ip_is_private": true, "outbound": "direct"},
-				{"protocol": "quic", "outbound": "block"},
-				{"network": "udp", "port": 443, "outbound": "block"},
-				{"protocol": "bittorrent", "outbound": "block"},
-			},
+			// ip_is_private stays first and the tunnel is the final; only the
+			// three equivalent block rules are reordered per deployment (all →
+			// block, so any order is semantically identical) to vary the
+			// otherwise-constant client rule shape (D-4).
+			"rules": append([]obj{{"ip_is_private": true, "outbound": "direct"}}, orderedBlockRules(cfg)...),
 			"final": "rdda",
 		},
 		"experimental": obj{
@@ -112,6 +111,23 @@ func buildDoc(cfg state.Config, c state.Client) (obj, error) {
 		},
 	}
 	return doc, nil
+}
+
+// orderedBlockRules returns the three equivalent "→ block" client rules
+// (QUIC, UDP:443, BitTorrent) in this deployment's stable per-node order. All
+// three drop to block, so any permutation yields identical routing behavior;
+// varying the order breaks the fleet-wide client rule-shape signature (D-4).
+func orderedBlockRules(cfg state.Config) []obj {
+	base := []obj{
+		{"protocol": "quic", "outbound": "block"},
+		{"network": "udp", "port": 443, "outbound": "block"},
+		{"protocol": "bittorrent", "outbound": "block"},
+	}
+	out := make([]obj, len(base))
+	for dst, src := range cfg.RuleOrder(len(base)) {
+		out[dst] = base[src]
+	}
+	return out
 }
 
 // ImportHeader returns the //-prefixed comment header Hiddify reads from the first

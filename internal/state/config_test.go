@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -120,5 +121,52 @@ func TestNfqwsArgs_AlwaysHasFooling(t *testing.T) {
 	custom := Desync{Profile: "fakedsplit", Fooling: "md5sig"}.NfqwsArgs()
 	if !strings.Contains(custom, "--dpi-desync=fakedsplit") || !strings.Contains(custom, "--dpi-desync-fooling=md5sig") {
 		t.Errorf("custom args wrong: %q", custom)
+	}
+}
+
+func TestStructVariance_DefaultsWhenNoUUID(t *testing.T) {
+	c := Config{} // no TunnelUUID
+	if c.MuxProtocol() != "h2mux" || c.MuxStreams() != 8 {
+		t.Errorf("empty-UUID defaults wrong: proto=%q streams=%d", c.MuxProtocol(), c.MuxStreams())
+	}
+	if order := c.RuleOrder(3); order[0] != 0 || order[1] != 1 || order[2] != 2 {
+		t.Errorf("empty-UUID RuleOrder must be identity, got %v", order)
+	}
+}
+
+func TestStructVariance_DeterministicInRangeAndVaries(t *testing.T) {
+	c1 := Config{TunnelUUID: "11111111-1111-1111-1111-111111111111"}
+	c2 := Config{TunnelUUID: "22222222-2222-2222-2222-222222222222"}
+
+	// Deterministic: same UUID ⇒ same choice across calls/renders.
+	if c1.MuxProtocol() != c1.MuxProtocol() || c1.MuxStreams() != c1.MuxStreams() {
+		t.Fatal("derivation must be deterministic")
+	}
+	// Every derived value stays end-to-end valid.
+	validProto := map[string]bool{"h2mux": true, "smux": true, "yamux": true}
+	for _, c := range []Config{c1, c2} {
+		if !validProto[c.MuxProtocol()] {
+			t.Errorf("invalid mux protocol %q", c.MuxProtocol())
+		}
+		if s := c.MuxStreams(); s < 4 || s > 16 {
+			t.Errorf("max_streams %d out of the 4..16 range", s)
+		}
+		order := c.RuleOrder(3)
+		seen := map[int]bool{}
+		for _, i := range order {
+			seen[i] = true
+		}
+		if len(order) != 3 || !seen[0] || !seen[1] || !seen[2] {
+			t.Errorf("RuleOrder(3) not a permutation of 0..2: %v", order)
+		}
+	}
+
+	// Varies across deployments: at least one structural axis differs between
+	// two distinct UUIDs (the whole point — no fleet-wide monoculture).
+	diff := c1.MuxProtocol() != c2.MuxProtocol() ||
+		c1.MuxStreams() != c2.MuxStreams() ||
+		fmt.Sprint(c1.RuleOrder(3)) != fmt.Sprint(c2.RuleOrder(3))
+	if !diff {
+		t.Error("two distinct deployments produced identical structural params")
 	}
 }
